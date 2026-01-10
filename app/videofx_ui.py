@@ -45,6 +45,9 @@ class VideoThread(QThread):
         self.virtual_cam_enabled = False
         self.virtual_cam = None
         self.background_image = None
+        self.background_path = None
+        self.frame_skip = 10  # Process every Nth frame for performance (higher = faster but choppier effects)
+        self.last_processed = None  # Cache last processed frame
         
     def run(self):
         self.running = True
@@ -63,8 +66,19 @@ class VideoThread(QThread):
             ret, frame = cap.read()
             if ret:
                 frame_count += 1
-                # Apply effect if enabled
-                processed = self.apply_effect(frame)
+                
+                # Apply effect with frame skipping for performance
+                if self.effect is not None:
+                    # Only process every Nth frame, use cached result otherwise
+                    if frame_count % self.frame_skip == 0 or self.last_processed is None:
+                        processed = self.apply_effect(frame)
+                        self.last_processed = processed
+                    else:
+                        # Use cached result but show current frame if no cache
+                        processed = self.last_processed if self.last_processed is not None else frame
+                else:
+                    processed = frame
+                    self.last_processed = None
                 
                 # Send to virtual camera if enabled
                 if self.virtual_cam_enabled and self.virtual_cam:
@@ -106,6 +120,9 @@ class VideoThread(QThread):
                        f"--in_file={input_path}",
                        f"--out_file={output_path}",
                        f"--mode={self.effect_mode}"]
+                # Add background image if selected
+                if self.background_path and os.path.exists(self.background_path):
+                    cmd.append(f"--bg_file={self.background_path}")
                        
             elif self.effect == "denoise":
                 # Video Denoise
@@ -168,6 +185,11 @@ class VideoThread(QThread):
     def set_background(self, image_path):
         if image_path and Path(image_path).exists():
             self.background_image = cv2.imread(image_path)
+            self.background_path = image_path
+            # Copy to container-accessible path if needed
+            container_bg_path = "/tmp/videofx_frames/background.png"
+            cv2.imwrite(container_bg_path, self.background_image)
+            self.background_path = container_bg_path
 
 
 class VideoFXApp(QMainWindow):
@@ -527,10 +549,14 @@ class VideoFXApp(QMainWindow):
                 self.statusBar().showMessage("Effect disabled")
     
     def select_background(self):
+        # Start in /host_home where host's home directory is mounted
+        start_dir = "/host_home"
+        if not os.path.exists(start_dir):
+            start_dir = ""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Background Image",
-            "",
+            start_dir,
             "Images (*.png *.jpg *.jpeg *.bmp)"
         )
         if file_path:
@@ -804,7 +830,7 @@ class VideoFXApp(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")
+    # app.setStyle("Fusion")
     
     window = VideoFXApp()
     window.show()

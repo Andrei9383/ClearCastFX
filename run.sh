@@ -34,21 +34,41 @@ fi
 echo "🎥 Starting VideoFX Studio..."
 
 # Run the container with GPU and display access
+# Note: Podman uses CDI (--device nvidia.com/gpu=all), Docker uses --gpus all
+if [ "$CONTAINER_CMD" = "podman" ]; then
+    GPU_ARGS="--device nvidia.com/gpu=all"
+else
+    GPU_ARGS="--gpus all"
+fi
+
+# Handle Xauthority - may be in different locations or not exist (Wayland)
+XAUTH_ARGS=""
+if [ -n "$XAUTHORITY" ] && [ -f "$XAUTHORITY" ]; then
+    XAUTH_ARGS="-v $XAUTHORITY:/root/.Xauthority:ro"
+elif [ -f "$HOME/.Xauthority" ]; then
+    XAUTH_ARGS="-v $HOME/.Xauthority:/root/.Xauthority:ro"
+fi
+
 $CONTAINER_CMD run --rm -it \
     --security-opt label=disable \
-    --device nvidia.com/gpu=all \
+    $GPU_ARGS \
     $CAMERA_ARGS \
     -e DISPLAY=$DISPLAY \
     -e QT_X11_NO_MITSHM=1 \
     -e NVIDIA_DRIVER_CAPABILITIES=all \
     -e NVIDIA_VISIBLE_DEVICES=all \
-    -e XDG_RUNTIME_DIR=/tmp/runtime-root \
+    -e HOME=/host_home \
+    -e XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-}" \
+    -e QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-gtk2}" \
+    -e GTK_THEME="${GTK_THEME:-}" \
+    -e KDE_FULL_SESSION="${KDE_FULL_SESSION:-}" \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    -v "$HOME/.Xauthority:/root/.Xauthority:ro" \
+    $XAUTH_ARGS \
+    -v "$HOME:/host_home:ro" \
     -v "$SCRIPT_DIR/output:/output" \
     --ipc=host \
     --network host \
-    "$IMAGE_NAME"
+    "$IMAGE_NAME" 2>&1
 
 EXIT_CODE=$?
 if [ $EXIT_CODE -ne 0 ]; then
@@ -58,6 +78,6 @@ if [ $EXIT_CODE -ne 0 ]; then
     echo "Common issues:"
     echo "  • No camera: Plug in a webcam and try again"
     echo "  • Display error: Run 'xhost +local:' first"
-    echo "  • GPU error: Run 'sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml'"
+    echo "  • GPU error: Check 'nvidia-smi' works"
     echo ""
 fi

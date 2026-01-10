@@ -1,7 +1,7 @@
 # VideoFX Portable App - Containerfile
 # Self-contained container with NVIDIA VideoFX SDK, TensorRT, and cuDNN
 
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+FROM docker.io/nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 
 LABEL maintainer="VideoFX Portable App"
 LABEL description="NVIDIA VideoFX SDK with webcam UI and virtual camera output"
@@ -22,6 +22,11 @@ RUN apt-get update && apt-get install -y \
     libv4l-dev \
     ffmpeg \
     x11-apps \
+    # Qt theme packages for native desktop appearance
+    adwaita-qt \
+    qt5-style-plugins \
+    kde-style-breeze \
+    breeze-icon-theme \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies for the UI
@@ -47,29 +52,52 @@ WORKDIR /build
 
 # Create FindTensorRT.cmake for the build
 RUN echo 'set(TensorRT_ROOT /usr/local/TensorRT-8.5.1.7)\n\
-set(TensorRT_INCLUDE_DIRS ${TensorRT_ROOT}/include)\n\
-set(TensorRT_LIBRARIES ${TensorRT_ROOT}/lib/libnvinfer.so ${TensorRT_ROOT}/lib/libnvinfer_plugin.so)\n\
-set(TensorRT_FOUND TRUE)\n\
-set(TensorRT_VERSION 8.5.1)' > /build/FindTensorRT.cmake
+    set(TensorRT_INCLUDE_DIRS ${TensorRT_ROOT}/include)\n\
+    set(TensorRT_LIBRARIES ${TensorRT_ROOT}/lib/libnvinfer.so ${TensorRT_ROOT}/lib/libnvinfer_plugin.so)\n\
+    set(TensorRT_FOUND TRUE)\n\
+    set(TensorRT_VERSION 8.5.1)' > /build/FindTensorRT.cmake
 
-# Build the sample apps
+# Build the sample apps (for reference/compatibility)
 RUN mkdir -p /build/samples && cd /build/samples && \
     cmake /usr/local/VideoFX/share/samples \
-        -DCMAKE_MODULE_PATH=/build \
-        -DCMAKE_CXX_FLAGS='-I/usr/local/VideoFX/include' \
-        -DCMAKE_EXE_LINKER_FLAGS='-L/usr/local/VideoFX/lib -Wl,-rpath,/usr/local/VideoFX/lib:/usr/local/TensorRT-8.5.1.7/lib' \
-        -Wno-dev && \
+    -DCMAKE_MODULE_PATH=/build \
+    -DCMAKE_CXX_FLAGS='-I/usr/local/VideoFX/include' \
+    -DCMAKE_EXE_LINKER_FLAGS='-L/usr/local/VideoFX/lib -Wl,-rpath,/usr/local/VideoFX/lib:/usr/local/TensorRT-8.5.1.7/lib' \
+    -Wno-dev && \
     make -j4
 
-# Create app directory
+# Create app directory and copy source
 WORKDIR /app
-
-# Copy the UI application
 COPY app/ /app/
+
+# Build the VideoFX Server (C++ with persistent model loading)
+RUN mkdir -p /build/videofx_server && cd /build/videofx_server && \
+    cmake /app \
+    -DCMAKE_MODULE_PATH=/build \
+    -DCMAKE_CXX_FLAGS='-I/usr/local/VideoFX/include -I/usr/local/VideoFX/share/samples/utils' \
+    -DCMAKE_EXE_LINKER_FLAGS='-L/usr/local/VideoFX/lib -Wl,-rpath,/usr/local/VideoFX/lib:/usr/local/TensorRT-8.5.1.7/lib' && \
+    make -j4 && \
+    cp videofx_server /app/
 
 # Create output directory for samples
 RUN mkdir -p /output /tmp/videofx_frames
 
-# Default command - run the UI
-CMD ["python3", "/app/videofx_ui.py"]
+# Create startup script
+RUN echo '#!/bin/bash\n\
+    echo "Starting VideoFX Studio..."\n\
+    echo ""\n\
+    echo "1. The video preview will appear in a separate window"\n\
+    echo "2. Use the control panel to select effects"\n\
+    echo ""\n\
+    # Start the server in background\n\
+    /app/videofx_server --model_dir=/usr/local/VideoFX/lib/models &\n\
+    SERVER_PID=$!\n\
+    sleep 2\n\
+    # Start the control panel\n\
+    python3 /app/control_panel.py\n\
+    # Cleanup\n\
+    kill $SERVER_PID 2>/dev/null\n\
+    ' > /app/start.sh && chmod +x /app/start.sh
 
+# Default command - run the startup script
+CMD ["/app/start.sh"]
