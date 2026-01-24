@@ -4,6 +4,9 @@ sdk/
 # Build outputs and temporary files
 output/
 
+Linux-Fake-Background-Webcam/
+app/build/
+
 # Python cache
 __pycache__/
 *.py[cod]

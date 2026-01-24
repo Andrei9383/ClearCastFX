@@ -17,23 +17,27 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-opencv \
-    python3-pyqt5 \
     v4l-utils \
     libv4l-dev \
     ffmpeg \
     x11-apps \
-    # Qt theme packages for native desktop appearance
-    adwaita-qt \
-    qt5-style-plugins \
-    kde-style-breeze \
-    breeze-icon-theme \
+    libxcb-cursor0 \
+    libxcb-xinerama0 \
+    libxcb-icccm4 \
+    libxcb-keysyms1 \
+    libxcb-shape0 \
+    libegl1 \
+    libgl1-mesa-glx \
+    libxkbcommon0 \
+    libxkbcommon-x11-0 \
+    libdbus-1-3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies for the UI
+# Install PySide6 for modern Qt6 UI
 RUN pip3 install --no-cache-dir \
     numpy \
-    pyfakewebcam \
-    Pillow
+    Pillow \
+    PySide6
 
 # Copy SDK files from build context
 COPY sdk/TensorRT-8.5.1.7 /usr/local/TensorRT-8.5.1.7
