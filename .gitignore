@@ -4,6 +4,8 @@ sdk/
 # Build outputs and temporary files
 output/
 
+sdk.tar.gz
+
 Linux-Fake-Background-Webcam/
 app/build/
 
