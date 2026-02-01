@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0ea5e9"/>
+      <stop offset="100%" style="stop-color:#0284c7"/>
+    </linearGradient>
+    <linearGradient id="innerGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#38bdf8"/>
+      <stop offset="100%" style="stop-color:#7dd3fc"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0ea5e9" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Outer circle (camera lens body) -->
+  <circle cx="100" cy="100" r="90" fill="url(#mainGradient)" filter="url(#shadow)"/>
+  
+  <!-- Inner lens ring -->
+  <circle cx="100" cy="100" r="70" fill="#ffffff" opacity="0.1"/>
+  <circle cx="100" cy="100" r="68" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.3"/>
+  
+  <!-- Lens aperture blades (stylized) -->
+  <g opacity="0.15" fill="#ffffff">
+    <path d="M100 32 L115 60 L100 55 L85 60 Z"/>
+    <path d="M168 100 L140 115 L145 100 L140 85 Z"/>
+    <path d="M100 168 L85 140 L100 145 L115 140 Z"/>
+    <path d="M32 100 L60 85 L55 100 L60 115 Z"/>
+  </g>
+  
+  <!-- Inner lens -->
+  <circle cx="100" cy="100" r="50" fill="url(#innerGradient)"/>
+  
+  <!-- Center highlight -->
+  <circle cx="100" cy="100" r="35" fill="#ffffff" opacity="0.2"/>
+  
+  <!-- Camera recording dot -->
+  <circle cx="100" cy="100" r="12" fill="#ffffff"/>
+  
+  <!-- Small highlight reflection -->
+  <ellipse cx="75" cy="75" rx="15" ry="10" fill="#ffffff" opacity="0.4" transform="rotate(-45, 75, 75)"/>
+  
+  <!-- FX sparkle effect -->
+  <g fill="#ffffff" opacity="0.9">
+    <path d="M155 45 L158 50 L163 50 L159 54 L161 59 L155 56 L149 59 L151 54 L147 50 L152 50 Z"/>
+    <path d="M170 70 L172 73 L175 73 L173 76 L174 79 L170 77 L166 79 L167 76 L165 73 L168 73 Z" transform="scale(0.7) translate(72, 30)"/>
+  </g>
+</svg>
