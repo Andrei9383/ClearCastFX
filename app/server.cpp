@@ -22,8 +22,9 @@
 #define BAIL_IF_ERR(err) do { if (0 != (err)) { goto bail; } } while (0)
 #define BAIL_IF_NULL(x, err, code) do { if ((void *)(x) == NULL) { err = code; goto bail; } } while (0)
 
-const char *CMD_PIPE = "/tmp/videofx/videofx_cmd";
+const char *CMD_PIPE = "/tmp/clearcastfx/clearcastfx_cmd";
 const char *VCAM_DEVICE = "/dev/video10";
+const char *PREVIEW_FRAME = "/tmp/clearcastfx/preview_frame.raw";
 
 std::atomic<bool> g_running(true);
 std::atomic<int> g_compMode(5);
@@ -33,6 +34,7 @@ std::atomic<bool> g_vcamEnabled(true);
 std::atomic<int> g_vcamConsumers(0);
 std::atomic<bool> g_showPreview(false);
 std::atomic<bool> g_showOverlay(false);
+std::atomic<bool> g_embeddedPreview(true);  // Qt embedded preview
 std::mutex g_bgMutex;
 std::string g_bgFile;
 bool g_bgChanged = false;
@@ -251,6 +253,29 @@ public:
     write(_vcamFd, idleFrame.data, idleFrame.total() * idleFrame.elemSize());
   }
 
+  void writePreviewFrame(const cv::Mat &frame) {
+    static int previewFd = -1;
+    static int lastWidth = 0;
+    static int lastHeight = 0;
+    
+    // Convert BGR to RGB for Qt
+    cv::Mat rgb;
+    cv::cvtColor(frame, rgb, cv::COLOR_BGR2RGB);
+    
+    // Reopen file if dimensions changed or first time
+    if (previewFd < 0 || rgb.cols != lastWidth || rgb.rows != lastHeight) {
+      if (previewFd >= 0) close(previewFd);
+      previewFd = open(PREVIEW_FRAME, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+      lastWidth = rgb.cols;
+      lastHeight = rgb.rows;
+    }
+    
+    if (previewFd >= 0) {
+      lseek(previewFd, 0, SEEK_SET);
+      write(previewFd, rgb.data, rgb.total() * rgb.elemSize());
+    }
+  }
+
   int run(int cameraId) {
     cv::VideoCapture cap;
     bool cameraActive = false;
@@ -261,7 +286,7 @@ public:
 
     cv::Mat frame, result, matte;
 
-    std::cout << "\n=== VideoFX Studio Ready ===" << std::endl;
+    std::cout << "\n=== ClearCastFX Ready ===" << std::endl;
     std::cout << "Press 'Q' or ESC to quit" << std::endl;
     std::cout << "Listening for commands on " << CMD_PIPE << std::endl;
 
@@ -270,12 +295,13 @@ public:
     while (g_running) {
       bool vcamEnabled = g_vcamEnabled.load();
       bool previewWanted = g_showPreview.load();
+      bool embeddedPreview = g_embeddedPreview.load();
       int consumers = g_vcamConsumers.load();
 
       if (vcamEnabled && _vcamFd < 0)
         initVirtualCamera(1280, 720);
 
-      bool needCamera = previewWanted || (vcamEnabled && consumers > 0);
+      bool needCamera = previewWanted || embeddedPreview || (vcamEnabled && consumers > 0);
 
       if (needCamera != lastNeedCamera) {
         std::cout << (needCamera ? "Capture active" : "Idle") << std::endl;
@@ -357,7 +383,7 @@ public:
         }
 
         if (g_showPreview && !previewCreated) {
-          cv::namedWindow("VideoFX Studio", cv::WINDOW_AUTOSIZE);
+          cv::namedWindow("ClearCastFX", cv::WINDOW_AUTOSIZE);
           previewCreated = true;
         }
 
@@ -416,12 +442,12 @@ public:
 
       if (g_showPreview) {
         if (!previewCreated) {
-          cv::namedWindow("VideoFX Studio", cv::WINDOW_AUTOSIZE);
+          cv::namedWindow("ClearCastFX", cv::WINDOW_AUTOSIZE);
           previewCreated = true;
         }
-        cv::imshow("VideoFX Studio", display);
+        cv::imshow("ClearCastFX", display);
       } else if (previewCreated) {
-        cv::destroyWindow("VideoFX Studio");
+        cv::destroyWindow("ClearCastFX");
         previewCreated = false;
       }
 
@@ -437,6 +463,9 @@ public:
       }
 
       writeToVirtualCamera(result);
+      
+      // Write frame for Qt preview
+      writePreviewFrame(result);
 
       if (previewCreated) {
         int key = cv::waitKey(1);
@@ -621,7 +650,7 @@ private:
 };
 
 void commandListener() {
-  mkdir("/tmp/videofx", 0777);
+  mkdir("/tmp/clearcastfx", 0777);
   unlink(CMD_PIPE);
   mkfifo(CMD_PIPE, 0666);
 
@@ -685,6 +714,10 @@ void commandListener() {
           g_showOverlay.store(true);
         } else if (cmd == "OVERLAY:off") {
           g_showOverlay.store(false);
+        } else if (cmd == "EMBEDDED:on") {
+          g_embeddedPreview.store(true);
+        } else if (cmd == "EMBEDDED:off") {
+          g_embeddedPreview.store(false);
         } else if (cmd.rfind("RESOLUTION:", 0) == 0) {
           std::string res = cmd.substr(11);
           size_t xpos = res.find('x');
@@ -741,7 +774,7 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "========================================" << std::endl;
-  std::cout << "     VideoFX Studio" << std::endl;
+  std::cout << "           ClearCastFX" << std::endl;
   std::cout << "========================================" << std::endl;
   std::cout << "Model directory: " << modelDir << std::endl;
   std::cout << "Camera ID: " << cameraId << std::endl;
@@ -763,6 +796,6 @@ int main(int argc, char **argv) {
   g_running = false;
   cmdThread.join();
 
-  std::cout << "VideoFX Studio closed." << std::endl;
+  std::cout << "ClearCastFX closed." << std::endl;
   return result;
 }
