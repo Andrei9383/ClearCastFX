@@ -1,26 +1,27 @@
+# ClearCastFX - Git Ignore
+
+# SDK (downloaded separately due to licensing)
 sdk/
 
-# Build outputs and temporary files
-output/
-
-sdk.tar.gz
-
-Linux-Fake-Background-Webcam/
-
+# Build outputs
 app/build/
+output/
+release/
 
-# Python cache
+# Archives
+sdk.tar.gz
+*.tar.gz
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
-# Virtual environments
-venv/
 .venv/
+venv/
 env/
 
-# IDE settings
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -30,10 +31,10 @@ env/
 # Logs
 *.log
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# Temporary
 *.tmp
 *.temp

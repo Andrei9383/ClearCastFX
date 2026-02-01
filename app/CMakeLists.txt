@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(VideoFXServer LANGUAGES CXX)
+project(ClearCastFX LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,16 +34,15 @@ link_directories(
     ${TRT_ROOT}/lib
 )
 
-# Source files - just our server code, link directly to SDK libs
+# Source files
 set(SOURCE_FILES
-    videofx_server.cpp
+    server.cpp
 )
 
 # Build the server
-add_executable(videofx_server ${SOURCE_FILES})
+add_executable(clearcastfx_server ${SOURCE_FILES})
 
-# Link directly to the VideoFX shared libraries (Linux)
-target_link_libraries(videofx_server
+target_link_libraries(clearcastfx_server
     ${OpenCV_LIBS}
     ${VFX_LIB}/libVideoFX.so
     ${VFX_LIB}/libNVCVImage.so
@@ -54,7 +53,7 @@ target_link_libraries(videofx_server
 )
 
 # Set rpath for runtime library loading
-set_target_properties(videofx_server PROPERTIES
+set_target_properties(clearcastfx_server PROPERTIES
     BUILD_RPATH "${VFX_LIB};${TRT_ROOT}/lib"
     INSTALL_RPATH "${VFX_LIB};${TRT_ROOT}/lib"
 )
