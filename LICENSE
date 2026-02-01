@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 Andrei9383
+Copyright (c) 2025 ClearCastFX Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,25 +30,16 @@ the `sdk/` directory are provided under NVIDIA's license, NOT the MIT license ab
 
 Key terms of the NVIDIA Maxine SDK license:
 - The SDK is licensed for use only on systems with NVIDIA GPUs
-- Redistribution of SDK components (except audio/video samples) is permitted
+- Redistribution of SDK components (binary form) is permitted
 - Applications must include NVIDIA branding attribution
-- The SDK may not be modified
 
-For full NVIDIA Maxine SDK license terms, see:
-- `sdk/VideoFX/share/Maxine_SDK_License_(1Apr2021).pdf`
-
-NVIDIA Maxine™ is a trademark of NVIDIA Corporation.
+NVIDIA Maxine is a trademark of NVIDIA Corporation.
 
 ---
 
 ## Third-Party Components
 
-This software includes or depends on third-party components with their own licenses:
-
-- **OpenCV** - Apache License 2.0
-- **PyQt5** - GPL v3 / Commercial License
-- **TensorRT** - NVIDIA proprietary license
-- **CUDA** - NVIDIA proprietary license
-- **cuDNN** - NVIDIA proprietary license
-
-See `sdk/VideoFX/share/bin/ThirdPartyLicenses.txt` for additional third-party licenses.
+- **OpenCV** — Apache License 2.0
+- **PySide6** — LGPL v3
+- **TensorRT** — NVIDIA proprietary license
+- **cuDNN** — NVIDIA proprietary license

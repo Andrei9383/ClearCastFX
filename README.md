@@ -1,105 +1,168 @@
-# VideoFX Studio
+# ClearCastFX
 
-Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK.
+Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your background, blur it, or apply professional video effects—all processed locally on your GPU.
 
-![NVIDIA Maxine](https://img.shields.io/badge/NVIDIA-Maxine_SDK-76B900?logo=nvidia)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Linux-orange)
+![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Required-76B900?logo=nvidia)
 
-## 🚀 Quick Start
+<p align="center">
+  <img src="assets/logo.svg" alt="ClearCastFX Logo" width="200">
+</p>
 
-### Option 1: Download Pre-built Release (Recommended)
+## Features
 
-Download the latest release from the [Releases page](../../releases) and run:
+- **Background Removal** — AI-powered green screen effect
+- **Background Replacement** — Use any image as your background
+- **Background Blur** — Professional depth-of-field blur
+- **Noise Reduction** — AI denoising for cleaner video
+- **Virtual Camera** — Use in Zoom, Meet, OBS, and any video app
+- **Low Latency** — Real-time processing with persistent model loading
+- **Modern UI** — Clean, light-themed control panel
+
+## Requirements
+
+- Linux (tested on Fedora, Ubuntu)
+- NVIDIA GPU (GTX 1060 or better recommended)
+- NVIDIA drivers with CUDA support
+- Podman or Docker with NVIDIA Container Toolkit
+- Webcam
+
+## Installation
+
+> **Note:** The NVIDIA Maxine SDK cannot be redistributed, so you must download it separately and build locally.
+
+### 1. Clone the repository
 
 ```bash
-tar -xzf videofx-app-*.tar.gz
-cd videofx-app
-./run.sh
+git clone https://github.com/yourusername/clearcastfx.git
+cd clearcastfx
 ```
 
-### Option 2: Build from Source
-
-See [Building from Source](#building-from-source) below.
-
-## ✨ Features
-
-- Real-time AI background removal (Green Screen)
-- Custom background replacement
-- Background blur
-- Virtual camera output for video conferencing
-- Low-latency processing with persistent model loading
-
-## 📋 Requirements
-
-- NVIDIA GPU (required by SDK license)
-- NVIDIA drivers with CUDA support
-- Podman or Docker with NVIDIA container toolkit
-
-## 🔧 Building from Source
-
-The NVIDIA Maxine SDK cannot be redistributed in source form. To build from source:
-
-### 1. Download the NVIDIA Maxine SDK
+### 2. Download the NVIDIA Maxine SDK
 
 1. Visit [NVIDIA Maxine Getting Started](https://developer.nvidia.com/maxine-getting-started)
-2. Sign in with your NVIDIA Developer account (free registration)
+2. Sign in with your NVIDIA Developer account (free)
 3. Download the **Video Effects SDK** for Linux
+4. Download **TensorRT 8.5.x** and **cuDNN 8.x** if not included
 
-### 2. Install the SDK
+### 3. Extract SDKs to the `sdk/` directory
 
 ```bash
-# Extract the SDK to the project's sdk/ directory
 mkdir -p sdk
-tar -xzf NVIDIA_Video_Effects_SDK_*.tar.gz -C sdk/
+# Extract VideoFX SDK
+tar -xzf Video_Effects_SDK_*.tar.gz -C sdk/
+mv sdk/Video_Effects_SDK* sdk/VideoFX
+
+# Extract TensorRT
+tar -xzf TensorRT-8.5.*.tar.gz -C sdk/
+
+# Extract cuDNN (copy libraries)
+mkdir -p sdk/cudnn
+tar -xzf cudnn-*.tar.xz
+cp -r cudnn-*/lib/* sdk/cudnn/
+cp -r cudnn-*/include/* sdk/cudnn/
 ```
 
-### 3. Build the Application
-
-```bash
-cd app
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+Your `sdk/` directory should look like:
+```
+sdk/
+├── VideoFX/
+├── TensorRT-8.5.1.7/
+└── cudnn/
 ```
 
-### 4. Run
+### 4. Build and run
 
 ```bash
+./install.sh
 ./run.sh
 ```
 
-## 📦 Distribution Notes
+## Usage
 
-This application includes the NVIDIA Maxine SDK in pre-built releases as permitted by
-NVIDIA's license (object code format, incorporated into the application).
+1. Launch ClearCastFX with `./run.sh`
+2. Select your desired effect from the dropdown
+3. For custom backgrounds, click "Browse" and select an image
+4. The virtual camera appears as `/dev/video10`
+5. Select "ClearCastFX Camera" in your video conferencing app
 
-**Source code** in this repository is MIT licensed. The SDK components included in
-binary releases remain subject to NVIDIA's license terms.
+### Keyboard Shortcuts (Preview Window)
 
-## 📜 License
+| Key | Action |
+|-----|--------|
+| Q / ESC | Quit |
+| F | Toggle FPS display |
 
-### Application Code (MIT License)
+## Virtual Camera Setup
 
-The application code in this repository (`app/`, `run.sh`, `Containerfile`, etc.) 
-is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+ClearCastFX uses v4l2loopback to create a virtual camera. The installer handles this automatically, but if needed:
 
-### NVIDIA Maxine SDK
+```bash
+sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1
+```
 
-This application uses the NVIDIA Maxine VideoFX SDK, which is subject to 
-NVIDIA's proprietary license. The SDK is redistributable in object code format
-as part of this application under NVIDIA's terms.
+To load automatically on boot, create `/etc/modules-load.d/v4l2loopback.conf`:
+```
+v4l2loopback
+```
 
-**NVIDIA Maxine SDK Branding Requirement:**  
-This application uses NVIDIA Maxine™ for AI-powered video effects.
+And `/etc/modprobe.d/v4l2loopback.conf`:
+```
+options v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1
+```
 
-## 🙏 Acknowledgments
+## Configuration
 
-- **NVIDIA Maxine™ VideoFX SDK** - AI video effects engine
-- **OpenCV** - Computer vision library (Apache 2.0)
-- **PyQt5** - GUI framework (GPL/Commercial)
-- **TensorRT** - NVIDIA deep learning inference optimizer
+Settings are stored in `~/.config/clearcastfx/settings.json` and persist between sessions.
 
-## 📄 Third-Party Licenses
+## Troubleshooting
 
-See `sdk/VideoFX/share/bin/ThirdPartyLicenses.txt` for third-party component licenses.
+### No camera detected
+- Ensure your webcam is connected: `ls /dev/video*`
+- Check camera permissions: `groups | grep video`
+
+### GPU errors
+- Verify NVIDIA drivers: `nvidia-smi`
+- Check Container Toolkit: `podman run --rm --device nvidia.com/gpu=all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi`
+
+### Display errors
+- Allow X11 connections: `xhost +local:`
+- For Wayland, ensure XWayland is running
+
+## Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Webcam        │────▶│  ClearCastFX     │────▶│  Virtual Camera │
+│   /dev/video0   │     │  Server (C++)    │     │  /dev/video10   │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+                               │ Named Pipe
+                               ▼
+                        ┌──────────────────┐
+                        │  Control Panel   │
+                        │  (Python/Qt)     │
+                        └──────────────────┘
+```
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+### Third-Party Components
+
+- **NVIDIA Maxine SDK** — NVIDIA proprietary license (must be downloaded separately)
+- **OpenCV** — Apache License 2.0
+- **PySide6** — LGPL v3
+- **TensorRT** — NVIDIA proprietary license
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Acknowledgments
+
+- NVIDIA Maxine team for the VideoFX SDK
+- OpenCV community
+- Qt/PySide6 project
