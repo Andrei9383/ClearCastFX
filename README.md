@@ -28,15 +28,47 @@ Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your
 - Podman or Docker with NVIDIA Container Toolkit
 - Webcam
 
-## Installation
+## Quick Start
 
-> **Note:** The NVIDIA Maxine SDK cannot be redistributed, so you must download it separately and build locally.
+The easiest way to get ClearCastFX running:
+
+```bash
+# One-liner install
+curl -fsSL https://raw.githubusercontent.com/Andrei9383/ClearCastFX/main/scripts/install-remote.sh | bash
+```
+
+Or manually:
+
+```bash
+# Pull the container
+podman pull ghcr.io/andrei9383/clearcastfx:latest
+
+# Setup virtual camera (requires v4l2loopback)
+sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1
+
+# Run
+podman run --rm \
+  --device nvidia.com/gpu=all \
+  --device /dev/video0 \
+  --device /dev/video10 \
+  -e DISPLAY=$DISPLAY \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v $HOME/.config/clearcastfx:/root/.config/clearcastfx \
+  --network host \
+  ghcr.io/andrei9383/clearcastfx:latest
+```
+
+After installation, run `clearcastfx` from terminal or find it in your application menu.
+
+## Building from Source
+
+If you prefer to build locally:
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/clearcastfx.git
-cd clearcastfx
+git clone https://github.com/Andrei9383/ClearCastFX.git
+cd ClearCastFX
 ```
 
 ### 2. Download the NVIDIA Maxine SDK

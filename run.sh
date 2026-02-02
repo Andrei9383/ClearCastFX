@@ -2,13 +2,28 @@
 # ClearCastFX Launcher
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE_NAME="localhost/clearcastfx:latest"
+GHCR_IMAGE="ghcr.io/andrei9383/clearcastfx:latest"
+LOCAL_IMAGE="localhost/clearcastfx:latest"
 
 # Detect container runtime
 if command -v podman &> /dev/null; then
     CONTAINER_CMD="podman"
 else
     CONTAINER_CMD="docker"
+fi
+
+# Determine which image to use: local build or GHCR
+if $CONTAINER_CMD image exists "$LOCAL_IMAGE" 2>/dev/null || \
+   $CONTAINER_CMD inspect "$LOCAL_IMAGE" &>/dev/null; then
+    IMAGE_NAME="$LOCAL_IMAGE"
+    echo "Using locally built image"
+else
+    IMAGE_NAME="$GHCR_IMAGE"
+    # Pull if not present or if --pull flag is passed
+    if [[ "$1" == "--pull" ]] || ! $CONTAINER_CMD inspect "$IMAGE_NAME" &>/dev/null; then
+        echo "Pulling ClearCastFX from GitHub Container Registry..."
+        $CONTAINER_CMD pull "$IMAGE_NAME"
+    fi
 fi
 
 # Ensure v4l2loopback is loaded

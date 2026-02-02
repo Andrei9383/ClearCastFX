@@ -5,6 +5,9 @@ FROM docker.io/nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 
 LABEL maintainer="ClearCastFX"
 LABEL description="AI-powered video effects with virtual camera output"
+LABEL org.opencontainers.image.source="https://github.com/Andrei9383/ClearCastFX"
+LABEL org.opencontainers.image.description="Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK"
+LABEL org.opencontainers.image.licenses="MIT"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
