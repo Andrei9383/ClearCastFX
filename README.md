@@ -62,7 +62,7 @@ After installation, run `clearcastfx` from terminal or find it in your applicati
 
 ## Building from Source
 
-If you prefer to build locally:
+If you prefer to build locally (if you have the SDK available):
 
 ### 1. Clone the repository
 
@@ -188,6 +188,24 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 - **OpenCV** — Apache License 2.0
 - **PySide6** — LGPL v3
 - **TensorRT** — NVIDIA proprietary license
+
+## Publishing (Maintainers)
+
+The container must be built locally (SDK cannot be in repo) and pushed manually to GHCR:
+
+```bash
+# 1. Build locally
+./install.sh
+
+# 2. Push to GitHub Container Registry
+./scripts/push-to-ghcr.sh
+```
+
+You'll need a [GitHub PAT](https://github.com/settings/tokens/new?scopes=write:packages) with `write:packages` scope.
+
+After pushing, make the package public:
+1. Go to https://github.com/users/Andrei9383/packages/container/clearcastfx/settings
+2. Change visibility to "Public"
 
 ## Contributing
 
