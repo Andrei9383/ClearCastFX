@@ -1,24 +1,16 @@
-# ClearCastFX
+<div align="center">
+<h1><img alt="logotype" src="assets/logo.svg" style="width: 100px; vertical-align: middle;"> ClearCastFX</h1>
+</div>
 
-Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your background, blur it, or apply professional video effects—all processed locally on your GPU.
-
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/Platform-Linux-orange)
-![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Required-76B900?logo=nvidia)
-
-<p align="center">
-  <img src="assets/logo.svg" alt="ClearCastFX Logo" width="200">
-</p>
+Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your background, blur it, or apply professional video effects - all processed locally on your GPU.
 
 ## Features
 
-- **Background Removal** — AI-powered green screen effect
-- **Background Replacement** — Use any image as your background
-- **Background Blur** — Professional depth-of-field blur
-- **Noise Reduction** — AI denoising for cleaner video
-- **Virtual Camera** — Use in Zoom, Meet, OBS, and any video app
-- **Low Latency** — Real-time processing with persistent model loading
-- **Modern UI** — Clean, light-themed control panel
+- **Background Removal**
+- **Background Replacement** - Use any image as your background
+- **Background Blur**
+- **Noise Reduction** - AI denoising for cleaner video
+- **On-demand camera usage** - Camera (and processing power) is only used when needed
 
 ## Requirements
 
@@ -26,7 +18,6 @@ Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your
 - NVIDIA GPU (GTX 1060 or better recommended)
 - NVIDIA drivers with CUDA support
 - Podman or Docker with NVIDIA Container Toolkit
-- Webcam
 
 ## Quick Start
 
@@ -184,14 +175,14 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ### Third-Party Components
 
-- **NVIDIA Maxine SDK** — NVIDIA proprietary license (must be downloaded separately)
-- **OpenCV** — Apache License 2.0
-- **PySide6** — LGPL v3
-- **TensorRT** — NVIDIA proprietary license
+- **NVIDIA Maxine SDK**
+- **OpenCV**
+- **PySide6**
+- **TensorRT**
 
 ## Publishing (Maintainers)
 
-The container must be built locally (SDK cannot be in repo) and pushed manually to GHCR:
+If you have the Maxine Video Effects SDK (which i can not distribute in source form, only under compiled form), you may make changes and upload the built container to GHCR with the following:
 
 ```bash
 # 1. Build locally
