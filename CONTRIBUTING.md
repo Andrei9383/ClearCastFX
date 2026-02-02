@@ -54,7 +54,7 @@ Feature requests are welcome! Please:
    cd clearcastfx
    ```
 
-2. Download the NVIDIA Maxine SDK from [NVIDIA Developer](https://developer.nvidia.com/maxine-getting-started) and extract to `sdk/`
+2. Download the NVIDIA Maxine SDK from [NVIDIA Developer](https://catalog.ngc.nvidia.com/) and extract to `sdk/`
 
 3. Build the container:
    ```bash
