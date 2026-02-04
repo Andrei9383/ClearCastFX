@@ -2,14 +2,14 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please report it by emailing the maintainers directly rather than opening a public issue.
+If you discover a security vulnerability, please report it by emailing the project maintainer (Andrei9383) directly rather than opening a public issue.
 
 When reporting:
 1. Describe the vulnerability in detail
 2. Include steps to reproduce if possible
 3. Suggest a fix if you have one
 
-We will acknowledge receipt within 48 hours and aim to provide a fix within 7 days for critical issues.
+I will acknowledge receipt within 48 hours and aim to provide a fix within 7 days for critical issues.
 
 ## Security Considerations
 
