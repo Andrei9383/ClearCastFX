@@ -137,8 +137,8 @@ create_launcher() {
 Name=ClearCastFX
 Comment=AI-Powered Video Effects
 Exec=$SCRIPT_DIR/run.sh
-Icon=camera-video
-Terminal=true
+Icon=$SCRIPT_DIR/assets/logo.svg
+Terminal=false
 Type=Application
 Categories=Video;AudioVideo;
 DESKTOP
