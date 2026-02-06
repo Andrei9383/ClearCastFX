@@ -75,6 +75,8 @@ COPY --from=builder /build/clearcastfx/clearcastfx_server /app/clearcastfx_serve
 
 COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvinfer.so.8* /usr/local/lib/clearcastfx/
 COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvinfer_plugin.so.8* /usr/local/lib/clearcastfx/
+COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvparsers.so.8* /usr/local/lib/clearcastfx/
+COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvonnxparser.so.8* /usr/local/lib/clearcastfx/
 COPY --from=builder /usr/local/VideoFX/lib/libVideoFX.so* /usr/local/lib/clearcastfx/
 COPY --from=builder /usr/local/VideoFX/lib/libNVCVImage.so* /usr/local/lib/clearcastfx/
 COPY --from=builder /usr/local/VideoFX/lib/libNVTRTLogger.so* /usr/local/lib/clearcastfx/
