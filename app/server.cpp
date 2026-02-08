@@ -203,9 +203,21 @@ public:
       return true;
     }
 
+    // Set frame rate on the virtual camera device
+    int fps = g_outputFps.load();
+    if (fps <= 0) fps = 30;
+    struct v4l2_streamparm parm;
+    memset(&parm, 0, sizeof(parm));
+    parm.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    parm.parm.output.timeperframe.numerator = 1;
+    parm.parm.output.timeperframe.denominator = fps;
+    if (ioctl(_vcamFd, VIDIOC_S_PARM, &parm) < 0) {
+      std::cerr << "Warning: Could not set virtual camera frame rate" << std::endl;
+    }
+
     _vcamWidth = width;
     _vcamHeight = height;
-    std::cout << "Virtual camera: " << VCAM_DEVICE << " @ " << width << "x" << height << std::endl;
+    std::cout << "Virtual camera: " << VCAM_DEVICE << " @ " << width << "x" << height << " " << fps << "fps" << std::endl;
     return true;
   }
 
@@ -233,6 +245,16 @@ public:
       if (ioctl(_vcamFd, VIDIOC_S_FMT, &fmt) >= 0) {
         _vcamWidth = bgr.cols;
         _vcamHeight = bgr.rows;
+
+        // Also update frame rate
+        int fps = g_outputFps.load();
+        if (fps <= 0) fps = 30;
+        struct v4l2_streamparm parm;
+        memset(&parm, 0, sizeof(parm));
+        parm.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+        parm.parm.output.timeperframe.numerator = 1;
+        parm.parm.output.timeperframe.denominator = fps;
+        ioctl(_vcamFd, VIDIOC_S_PARM, &parm);
       }
     }
 
@@ -449,17 +471,6 @@ public:
       } else if (previewCreated) {
         cv::destroyWindow("ClearCastFX");
         previewCreated = false;
-      }
-
-      int outputFps = g_outputFps.load();
-      if (outputFps > 0 && outputFps < 120) {
-        static auto lastOutputTime = std::chrono::steady_clock::now();
-        auto now = std::chrono::steady_clock::now();
-        auto frameDuration = std::chrono::microseconds(1000000 / outputFps);
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - lastOutputTime);
-        if (elapsed < frameDuration)
-          std::this_thread::sleep_for(frameDuration - elapsed);
-        lastOutputTime = std::chrono::steady_clock::now();
       }
 
       writeToVirtualCamera(result);
@@ -737,6 +748,7 @@ void commandListener() {
             int fps = std::stoi(cmd.substr(4));
             if (fps > 0 && fps <= 120) {
               g_cameraFps.store(fps);
+              g_outputFps.store(fps);
               g_cameraSettingsChanged.store(true);
             }
           } catch (...) {}
