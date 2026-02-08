@@ -1,16 +1,17 @@
 <div align="center">
 
+<h1 align="center"><img src="assets/logo.svg" alt="ClearCastFX Logo" width="64" /> ClearCastFX</h1>
+
 <p align="center">
-  <img src="assets/logo.svg" alt="ClearCastFX Logo" width="80" style="vertical-align: middle;" />
-  <span style="font-size: 2em; font-weight: bold; vertical-align: middle; margin-left: 12px;">
-    ClearCastFX
-  </span>
+  Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK.<br>
+  Basically NVIDIA Broadcast, but for Linux.
 </p>
 
-Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK.<br>
-Basically NVIDIA Broadcast, but for Linux.
-
 </div>
+
+<p align="center">
+  <img src="assets/preview.png" alt="ClearCastFX preview" width="600" />
+</p>
 
 ## Table of Contents
 
@@ -36,7 +37,7 @@ Basically NVIDIA Broadcast, but for Linux.
 
 ## Prerequisites
 
-The following must be installed on your host system **before** installing ClearCastFC:
+The following must be installed on your host system **before** installing ClearCastFX:
 
 - **NVIDIA GPU** (GTX 1060 or better recommended)
 - **NVIDIA drivers** with CUDA support — verify with `nvidia-smi`
@@ -83,11 +84,11 @@ After installation, run `clearcastfx` from terminal or find it in your applicati
 
 If you prefer to build locally (if you have the SDK available):
 
-[!NOTE]
-The Maxine SDK (for version v0.7.2.0), as per my trials, requires (very) specific versions of cuDNN and TensorRT:
-- CUDA 11.8.0
-- cuDNN 8.6.0.163
-- TensorRT 8.5.1.7
+> [!NOTE]
+> The Maxine SDK (for version v0.7.2.0), as per my trials, requires (very) specific versions of cuDNN and TensorRT:
+> - CUDA 11.8.0
+> - cuDNN 8.6.0.163
+> - TensorRT 8.5.1.7
 
 ### 1. Clone the repository
 
