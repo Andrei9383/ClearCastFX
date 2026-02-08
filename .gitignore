@@ -1,6 +1,10 @@
 # ClearCastFX - Git Ignore
 
-# SDK (downloaded separately due to licensing)
+# My helper scripts
+scripts/release-build-push.sh
+scripts/release-tag.sh
+
+# SDK
 sdk/
 
 # Build outputs
