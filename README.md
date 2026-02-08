@@ -1,8 +1,30 @@
 <div align="center">
-<h1><img alt="logotype" src="assets/logo.svg" style="width: 100px; vertical-align: middle;"> ClearCastFX</h1>
+
+<p align="center">
+  <img src="assets/logo.svg" alt="ClearCastFX Logo" width="80" style="vertical-align: middle;" />
+  <span style="font-size: 2em; font-weight: bold; vertical-align: middle; margin-left: 12px;">
+    ClearCastFX
+  </span>
+</p>
+
+Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK.<br>
+Basically NVIDIA Broadcast, but for Linux.
+
 </div>
 
-Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your background, blur it, or apply professional video effects - all processed locally on your GPU.
+## Table of Contents
+
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Building from Source](#building-from-source)
+- [Usage](#usage)
+- [Virtual Camera Setup](#virtual-camera-setup)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [Contributing](#contributing)
+- [Acknowledgments](#acknowledgments)
 
 ## Features
 
@@ -12,19 +34,25 @@ Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK. Replace your
 - **Noise Reduction** - AI denoising for cleaner video
 - **On-demand camera usage** - Camera (and processing power) is only used when needed
 
-## Requirements
+## Prerequisites
 
-- Linux (tested on Fedora, Ubuntu)
-- NVIDIA GPU (GTX 1060 or better recommended)
-- NVIDIA drivers with CUDA support
-- Podman or Docker with NVIDIA Container Toolkit
+The following must be installed on your host system **before** installing ClearCastFC:
+
+- **NVIDIA GPU** (GTX 1060 or better recommended)
+- **NVIDIA drivers** with CUDA support — verify with `nvidia-smi`
+- **Podman or Docker**
+- **[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)** — required for GPU passthrough into the container
+  - Fedora: `sudo dnf install nvidia-container-toolkit`
+  - Ubuntu: follow the [official install guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- **[v4l2loopback](https://github.com/umlaeute/v4l2loopback)** — kernel module for the virtual camera device
+  - Fedora: `sudo dnf install v4l2loopback`
+  - Ubuntu: `sudo apt install v4l2loopback-dkms`
 
 ## Quick Start
 
 The easiest way to get ClearCastFX running:
 
 ```bash
-# One-liner install
 curl -fsSL https://raw.githubusercontent.com/Andrei9383/ClearCastFX/main/scripts/install-remote.sh | bash
 ```
 
@@ -55,6 +83,12 @@ After installation, run `clearcastfx` from terminal or find it in your applicati
 
 If you prefer to build locally (if you have the SDK available):
 
+[!NOTE]
+The Maxine SDK (for version v0.7.2.0), as per my trials, requires (very) specific versions of cuDNN and TensorRT:
+- CUDA 11.8.0
+- cuDNN 8.6.0.163
+- TensorRT 8.5.1.7
+
 ### 1. Clone the repository
 
 ```bash
@@ -62,12 +96,11 @@ git clone https://github.com/Andrei9383/ClearCastFX.git
 cd ClearCastFX
 ```
 
-### 2. Download the NVIDIA Maxine SDK
+### 2. Download the NVIDIA Maxine SDK, if you have an AI Enterprise subscription :(
 
-1. Visit [NVIDIA Maxine Getting Started](https://developer.nvidia.com/maxine-getting-started)
-2. Sign in with your NVIDIA Developer account (free)
+1. Visit [NVIDIA Catalog](https://catalog.ngc.nvidia.com/)
 3. Download the **Video Effects SDK** for Linux
-4. Download **TensorRT 8.5.x** and **cuDNN 8.x** if not included
+4. Download **TensorRT 8.5.x** and **cuDNN 8.x** (check the versions specified in the documentation of the SDK, usually they are pretty strict)
 
 ### 3. Extract SDKs to the `sdk/` directory
 
@@ -104,7 +137,7 @@ sdk/
 
 ## Usage
 
-1. Launch ClearCastFX with `./run.sh`
+1. Launch ClearCastFX by running the desktop entry application or by running `./run.sh` at the install location
 2. Select your desired effect from the dropdown
 3. For custom backgrounds, click "Browse" and select an image
 4. The virtual camera appears as `/dev/video10`
@@ -149,26 +182,6 @@ Settings are stored in `~/.config/clearcastfx/settings.json` and persist between
 - Verify NVIDIA drivers: `nvidia-smi`
 - Check Container Toolkit: `podman run --rm --device nvidia.com/gpu=all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi`
 
-### Display errors
-- Allow X11 connections: `xhost +local:`
-- For Wayland, ensure XWayland is running
-
-## Architecture
-
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Webcam        │────▶│  ClearCastFX     │────▶│  Virtual Camera │
-│   /dev/video0   │     │  Server (C++)    │     │  /dev/video10   │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                               │
-                               │ Named Pipe
-                               ▼
-                        ┌──────────────────┐
-                        │  Control Panel   │
-                        │  (Python/Qt)     │
-                        └──────────────────┘
-```
-
 ## License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
@@ -179,24 +192,6 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 - **OpenCV**
 - **PySide6**
 - **TensorRT**
-
-## Publishing (Maintainers)
-
-If you have the Maxine Video Effects SDK (which i can not distribute in source form, only under compiled form), you may make changes and upload the built container to GHCR with the following:
-
-```bash
-# 1. Build locally
-./install.sh
-
-# 2. Push to GitHub Container Registry
-./scripts/push-to-ghcr.sh
-```
-
-You'll need a [GitHub PAT](https://github.com/settings/tokens/new?scopes=write:packages) with `write:packages` scope.
-
-After pushing, make the package public:
-1. Go to https://github.com/users/Andrei9383/packages/container/clearcastfx/settings
-2. Change visibility to "Public"
 
 ## Contributing
 

@@ -25,8 +25,7 @@ SOFTWARE.
 ## NVIDIA Maxine SDK
 
 This software uses the NVIDIA Maxine VideoFX SDK, which is subject to NVIDIA's 
-proprietary license terms. The SDK binaries, models, and libraries located in 
-the `sdk/` directory are provided under NVIDIA's license, NOT the MIT license above.
+proprietary license terms. By using this software, you agree to comply with the NVIDIA Maxine SDK License Agreement.
 
 Key terms of the NVIDIA Maxine SDK license:
 - The SDK is licensed for use only on systems with NVIDIA GPUs
