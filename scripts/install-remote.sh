@@ -208,16 +208,32 @@ RUNSCRIPT
     # Create symlink in bin directory
     ln -sf "$INSTALL_DIR/run.sh" "$BIN_DIR/clearcastfx"
     
+    # Download logo for desktop entry
+    LOGO_URL="https://raw.githubusercontent.com/Andrei9383/ClearCastFX/main/assets/logo.svg"
+    LOGO_PATH="$INSTALL_DIR/logo.svg"
+    if command -v curl &> /dev/null; then
+        curl -fsSL "$LOGO_URL" -o "$LOGO_PATH" 2>/dev/null || true
+    elif command -v wget &> /dev/null; then
+        wget -q "$LOGO_URL" -O "$LOGO_PATH" 2>/dev/null || true
+    fi
+
     # Create desktop entry
     DESKTOP_FILE="$HOME/.local/share/applications/clearcastfx.desktop"
     mkdir -p "$(dirname "$DESKTOP_FILE")"
     
+    # Use downloaded logo if available, otherwise fall back to generic icon
+    if [ -f "$LOGO_PATH" ]; then
+        ICON_VALUE="$LOGO_PATH"
+    else
+        ICON_VALUE="camera-video"
+    fi
+
     cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
 Name=ClearCastFX
 Comment=AI-Powered Video Effects
 Exec=$INSTALL_DIR/run.sh
-Icon=camera-video
+Icon=$ICON_VALUE
 Terminal=false
 Type=Application
 Categories=Video;AudioVideo;
@@ -247,8 +263,12 @@ main() {
     
     # Check if ~/.local/bin is in PATH
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        echo -e "${YELLOW}Note:${NC} Add ~/.local/bin to your PATH:"
+        echo -e "${YELLOW}Note:${NC} ~/.local/bin is not in your PATH."
+        echo -e "  Run the following, then ${GREEN}restart your terminal${NC} (or run ${BLUE}source ~/.bashrc${NC}):"
         echo -e "  ${BLUE}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"
+        echo ""
+    else
+        echo -e "${YELLOW}Note:${NC} If 'clearcastfx' is not found, restart your terminal or run: ${BLUE}source ~/.bashrc${NC}"
         echo ""
     fi
 }
