@@ -216,6 +216,9 @@ def send_command(cmd: str) -> bool:
         return False
 
 
+VCAM_DEVICE = "/dev/video10"
+
+
 def get_video_devices():
     """Get list of available video devices."""
     devices = []
@@ -224,7 +227,8 @@ def get_video_devices():
         for line in result.stdout.split():
             if line.startswith('video'):
                 dev_path = f"/dev/{line}"
-                # Try to get device name
+                if dev_path == VCAM_DEVICE:
+                    continue
                 try:
                     name_result = subprocess.run(
                         ['v4l2-ctl', '-d', dev_path, '--info'],
@@ -788,12 +792,34 @@ class ControlPanel(QMainWindow):
         input_text.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent;")
         camera_layout.addWidget(input_text)
         
+        device_row = QHBoxLayout()
         self.device_combo = QComboBox()
+        self.device_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._populate_devices()
         self.device_combo.currentIndexChanged.connect(self._on_device_changed)
-        camera_layout.addWidget(self.device_combo)
-        input_text.setVisible(False)
-        self.device_combo.setVisible(False)
+        device_row.addWidget(self.device_combo)
+        
+        self.refresh_devices_button = QPushButton("\u21bb")
+        self.refresh_devices_button.setToolTip("Refresh device list")
+        self.refresh_devices_button.setFixedSize(46, 46)
+        self.refresh_devices_button.setStyleSheet("""
+            QPushButton {
+                background-color: #1a1f1a;
+                border: 1px solid #2d3d2d;
+                border-radius: 10px;
+                font-size: 18px;
+                color: #94a3b8;
+            }
+            QPushButton:hover {
+                background-color: #1f2a1f;
+                border-color: #3b82f6;
+                color: #3b82f6;
+            }
+        """)
+        self.refresh_devices_button.clicked.connect(self._refresh_devices)
+        device_row.addWidget(self.refresh_devices_button)
+        
+        camera_layout.addLayout(device_row)
         
         # Resolution
         res_text = QLabel("Resolution")
@@ -839,10 +865,12 @@ class ControlPanel(QMainWindow):
 
     def _populate_devices(self):
         """Populate the device combo box."""
+        self.device_combo.blockSignals(True)
         self.device_combo.clear()
         devices = get_video_devices()
         for path, name in devices:
-            self.device_combo.addItem(name, path)
+            self.device_combo.addItem(f"{name}  ({path})", path)
+        self.device_combo.blockSignals(False)
 
     def _refresh_devices(self):
         """Refresh the list of video devices."""
@@ -950,6 +978,11 @@ class ControlPanel(QMainWindow):
             self.bg_label.setText(Path(bg_path).name)
             self.bg_label.setStyleSheet("color: #e2e8f0; font-size: 12px; background: transparent;")
         
+        # Apply input device
+        saved_device = self.settings.get("input_device")
+        if saved_device:
+            self._set_combo_by_data(self.device_combo, saved_device)
+        
         # Apply resolution
         self._refresh_supported_formats()
         saved_res = self.settings.get("resolution")
@@ -1012,6 +1045,11 @@ class ControlPanel(QMainWindow):
         effect_mode = self.settings.get("effect_mode")
         mode_index = EFFECT_MAP.get(effect_mode, 6)
         send_command(f"MODE:{mode_index}")
+        
+        # Send input device
+        device = self.settings.get("input_device")
+        if device:
+            send_command(f"DEVICE:{device}")
         
         bg_path = self.settings.get("background_image")
         if bg_path and Path(bg_path).exists():

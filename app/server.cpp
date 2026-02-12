@@ -44,6 +44,10 @@ std::atomic<int> g_cameraHeight(720);
 std::atomic<int> g_cameraFps(30);
 std::atomic<bool> g_cameraSettingsChanged(false);
 
+std::mutex g_deviceMutex;
+std::string g_inputDevice;
+bool g_deviceChanged = false;
+
 enum CompMode {
   compMatte,
   compLight,
@@ -305,6 +309,7 @@ public:
     bool previewCreated = false;
     int width = 0;
     int height = 0;
+    std::string currentDevice;
 
     cv::Mat frame, result, matte;
 
@@ -351,9 +356,22 @@ public:
       }
 
       if (!cameraActive) {
-        cap.open(cameraId);
+        // Check if a device path was set via command
+        {
+          std::lock_guard<std::mutex> lock(g_deviceMutex);
+          if (!g_inputDevice.empty()) {
+            currentDevice = g_inputDevice;
+          }
+          g_deviceChanged = false;
+        }
+
+        if (!currentDevice.empty()) {
+          cap.open(currentDevice, cv::CAP_V4L2);
+        } else {
+          cap.open(cameraId);
+        }
         if (!cap.isOpened()) {
-          std::cerr << "Error: Cannot open camera " << cameraId << std::endl;
+          std::cerr << "Error: Cannot open camera " << (currentDevice.empty() ? std::to_string(cameraId) : currentDevice) << std::endl;
           std::this_thread::sleep_for(std::chrono::milliseconds(500));
           continue;
         }
@@ -412,6 +430,25 @@ public:
         cameraActive = true;
       }
 
+      // Check for device change or camera settings change
+      {
+        std::lock_guard<std::mutex> lock(g_deviceMutex);
+        if (g_deviceChanged) {
+          g_deviceChanged = false;
+          if (cameraActive) {
+            cap.release();
+            cameraActive = false;
+            // Deallocate GPU buffers so they are reallocated for new resolution
+            NvCVImage_Dealloc(&_srcGPU);
+            NvCVImage_Dealloc(&_dstGPU);
+            NvCVImage_Dealloc(&_blurGPU);
+            NvCVImage_Dealloc(&_artifactInGPU);
+            NvCVImage_Dealloc(&_artifactGPU);
+            buffersAllocated = false;
+          }
+          continue;
+        }
+      }
       if (g_cameraSettingsChanged.exchange(false)) {
         if (cameraActive) {
           cap.release();
@@ -729,6 +766,16 @@ void commandListener() {
           g_embeddedPreview.store(true);
         } else if (cmd == "EMBEDDED:off") {
           g_embeddedPreview.store(false);
+        } else if (cmd.rfind("DEVICE:", 0) == 0) {
+          std::string devPath = cmd.substr(7);
+          if (!devPath.empty()) {
+            std::lock_guard<std::mutex> lock(g_deviceMutex);
+            if (devPath != g_inputDevice) {
+              g_inputDevice = devPath;
+              g_deviceChanged = true;
+              std::cout << "Input device: " << devPath << std::endl;
+            }
+          }
         } else if (cmd.rfind("RESOLUTION:", 0) == 0) {
           std::string res = cmd.substr(11);
           size_t xpos = res.find('x');
