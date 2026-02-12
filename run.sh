@@ -112,6 +112,7 @@ $CONTAINER_CMD run --rm \
     -v "$CONFIG_DIR:/root/.config/clearcastfx:rw" \
     -v "/tmp/clearcastfx:/tmp/clearcastfx:rw" \
     -v "$SCRIPT_DIR/output:/output" \
+    -v "/dev/dri:/dev/dri" \
     --ipc=host \
     --network host \
     "$IMAGE_NAME" 2>&1

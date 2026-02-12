@@ -2,6 +2,7 @@
 #include <linux/videodev2.h>
 #include <poll.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -368,7 +369,7 @@ public:
         if (!currentDevice.empty()) {
           cap.open(currentDevice, cv::CAP_V4L2);
         } else {
-          cap.open(cameraId);
+          cap.open(cameraId, cv::CAP_V4L2);
         }
         if (!cap.isOpened()) {
           std::cerr << "Error: Cannot open camera " << (currentDevice.empty() ? std::to_string(cameraId) : currentDevice) << std::endl;
@@ -815,6 +816,12 @@ void commandListener() {
 }
 
 int main(int argc, char **argv) {
+  setenv("LIBGL_ALWAYS_SOFTWARE", "0", 0);
+  setenv("MESA_GL_VERSION_OVERRIDE", "3.3", 0);
+
+  setenv("OPENCV_VIDEOIO_PRIORITY_V4L2", "990", 0);
+  setenv("OPENCV_VIDEOIO_PRIORITY_GSTREAMER", "0", 0);
+
   std::string modelDir = "/usr/local/VideoFX/lib/models";
   int cameraId = 0;
   int mode = 0;
