@@ -14,14 +14,14 @@ I will acknowledge receipt within 48 hours and aim to provide a fix within 7 day
 ## Security Considerations
 
 ### Container Security
-- ClearCastFX runs inside a container with GPU access
+- BluCast runs inside a container with GPU access
 - The container requires `--security-opt label=disable` for device access
 - Network is in host mode for X11 display
 
 ### Data Privacy
 - All video processing happens locally on your GPU
 - No data is sent to external servers
-- Configuration is stored locally in `~/.config/clearcastfx/`
+- Configuration is stored locally in `~/.config/blucast/`
 
 ### Dependencies
 - Uses NVIDIA proprietary SDK components

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ClearCastFX Installation Script
+# BluCast Installation Script
 
 set -e
 
@@ -10,12 +10,12 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="clearcastfx"
-IMAGE_NAME="clearcastfx"
+APP_NAME="blucast"
+IMAGE_NAME="blucast"
 
 echo -e "${BLUE}"
 echo "======================================"
-echo "         ClearCastFX Installer"
+echo "         BluCast Installer"
 echo "    AI-Powered Video Effects"
 echo "======================================"
 echo -e "${NC}"
@@ -64,7 +64,7 @@ install_v4l2loopback() {
     fi
     
     if modinfo v4l2loopback &>/dev/null; then
-        sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1 || true
+        sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 || true
         echo -e "  Virtual camera created at /dev/video10"
     else
         echo -e "  ${YELLOW}v4l2loopback not installed${NC}"
@@ -129,12 +129,12 @@ create_launcher() {
     chmod +x "$SCRIPT_DIR/run.sh"
     echo -e "  Launcher ready: ${GREEN}$SCRIPT_DIR/run.sh${NC}"
     
-    DESKTOP_FILE="$HOME/.local/share/applications/clearcastfx.desktop"
+    DESKTOP_FILE="$HOME/.local/share/applications/blucast.desktop"
     mkdir -p "$(dirname "$DESKTOP_FILE")"
     
     cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
-Name=ClearCastFX
+Name=BluCast
 Comment=AI-Powered Video Effects
 Exec=$SCRIPT_DIR/run.sh
 Icon=$SCRIPT_DIR/assets/logo.svg
@@ -158,7 +158,7 @@ main() {
     echo "       Installation Complete!"
     echo "======================================${NC}"
     echo ""
-    echo -e "To start ClearCastFX:"
+    echo -e "To start BluCast:"
     echo -e "  ${BLUE}cd $SCRIPT_DIR && ./run.sh${NC}"
     echo ""
 }

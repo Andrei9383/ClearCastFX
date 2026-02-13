@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ClearCastFX Control Panel
+BluCast Control Panel
 A modern, dark themed interface for AI-powered video effects.
 """
 
@@ -21,12 +21,13 @@ from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve,
 from PySide6.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter, QAction, QImage, QFont, QFontDatabase
 from PySide6.QtSvg import QSvgRenderer
 
-CMD_PIPE = "/tmp/clearcastfx/clearcastfx_cmd"
-CONFIG_DIR = Path("/root/.config/clearcastfx")
+CMD_PIPE = "/tmp/blucast/blucast_cmd"
+CONFIG_DIR = Path("/root/.config/blucast")
 CONFIG_FILE = CONFIG_DIR / "settings.json"
-PREVIEW_FRAME = "/tmp/clearcastfx/preview_frame.raw"
+PREVIEW_FRAME = "/tmp/blucast/preview_frame.raw"
 LOGO_PATH = "/app/assets/logo.svg"
 
+# TODO: Add denoise filter (from superres)
 # Map effect buttons to internal mode indices
 EFFECT_MAP = {
     "blur": 6,      # Blur Background
@@ -467,12 +468,12 @@ class ToggleButton(QPushButton):
 
 
 class ControlPanel(QMainWindow):
-    """Main application window for ClearCastFX."""
+    """Main application window for BluCast."""
     
     def __init__(self):
         super().__init__()
         self.settings = Settings()
-        self.setWindowTitle("ClearCastFX")
+        self.setWindowTitle("BluCast")
         self.setMinimumSize(480, 800)
         self.resize(500, 900)
         self.preview_width = 0
@@ -488,7 +489,7 @@ class ControlPanel(QMainWindow):
         self.preview_timer = QTimer(self)
         self.preview_timer.timeout.connect(self._update_preview)
         self.preview_timer.start(33)  # ~30fps
-        
+    
     def _update_preview(self):
         """Update the preview frame from shared memory/file."""
         try:
@@ -547,7 +548,7 @@ class ControlPanel(QMainWindow):
             return
         self.tray_available = True
         self.tray_icon.setIcon(self._create_tray_icon())
-        self.tray_icon.setToolTip("ClearCastFX")
+        self.tray_icon.setToolTip("BluCast")
         
         tray_menu = QMenu()
         show_action = QAction("Show Window", self)
@@ -558,7 +559,7 @@ class ControlPanel(QMainWindow):
         vcam_action.triggered.connect(lambda: self.vcam_button.click())
         tray_menu.addAction(vcam_action)
         tray_menu.addSeparator()
-        quit_action = QAction("Quit ClearCastFX", self)
+        quit_action = QAction("Quit", self)
         quit_action.triggered.connect(self._on_quit)
         tray_menu.addAction(quit_action)
         
@@ -799,7 +800,7 @@ class ControlPanel(QMainWindow):
         self.device_combo.currentIndexChanged.connect(self._on_device_changed)
         device_row.addWidget(self.device_combo)
         
-        self.refresh_devices_button = QPushButton("\u21bb")
+        self.refresh_devices_button = QPushButton("⟳")
         self.refresh_devices_button.setToolTip("Refresh device list")
         self.refresh_devices_button.setFixedSize(46, 46)
         self.refresh_devices_button.setStyleSheet("""
@@ -809,6 +810,7 @@ class ControlPanel(QMainWindow):
                 border-radius: 10px;
                 font-size: 18px;
                 color: #94a3b8;
+                padding: 8px;
             }
             QPushButton:hover {
                 background-color: #1f2a1f;
@@ -844,7 +846,7 @@ class ControlPanel(QMainWindow):
         layout.addStretch()
 
         # Quit Button
-        self.quit_button = QPushButton("Quit ClearCastFX")
+        self.quit_button = QPushButton("Quit")
         self.quit_button.setStyleSheet("""
             QPushButton {
                 background-color: #1a1515;

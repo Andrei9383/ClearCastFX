@@ -23,9 +23,9 @@
 #define BAIL_IF_ERR(err) do { if (0 != (err)) { goto bail; } } while (0)
 #define BAIL_IF_NULL(x, err, code) do { if ((void *)(x) == NULL) { err = code; goto bail; } } while (0)
 
-const char *CMD_PIPE = "/tmp/clearcastfx/clearcastfx_cmd";
+const char *CMD_PIPE = "/tmp/blucast/blucast_cmd";
 const char *VCAM_DEVICE = "/dev/video10";
-const char *PREVIEW_FRAME = "/tmp/clearcastfx/preview_frame.raw";
+const char *PREVIEW_FRAME = "/tmp/blucast/preview_frame.raw";
 
 std::atomic<bool> g_running(true);
 std::atomic<int> g_compMode(5);
@@ -314,7 +314,7 @@ public:
 
     cv::Mat frame, result, matte;
 
-    std::cout << "\n=== ClearCastFX Ready ===" << std::endl;
+    std::cout << "\n=== BluCast Ready ===" << std::endl;
     std::cout << "Press 'Q' or ESC to quit" << std::endl;
     std::cout << "Listening for commands on " << CMD_PIPE << std::endl;
 
@@ -424,7 +424,7 @@ public:
         }
 
         if (g_showPreview && !previewCreated) {
-          cv::namedWindow("ClearCastFX", cv::WINDOW_AUTOSIZE);
+          cv::namedWindow("BluCast", cv::WINDOW_AUTOSIZE);
           previewCreated = true;
         }
 
@@ -502,12 +502,12 @@ public:
 
       if (g_showPreview) {
         if (!previewCreated) {
-          cv::namedWindow("ClearCastFX", cv::WINDOW_AUTOSIZE);
+          cv::namedWindow("BluCast", cv::WINDOW_AUTOSIZE);
           previewCreated = true;
         }
-        cv::imshow("ClearCastFX", display);
+        cv::imshow("BluCast", display);
       } else if (previewCreated) {
-        cv::destroyWindow("ClearCastFX");
+        cv::destroyWindow("BluCast");
         previewCreated = false;
       }
 
@@ -699,7 +699,7 @@ private:
 };
 
 void commandListener() {
-  mkdir("/tmp/clearcastfx", 0777);
+  mkdir("/tmp/blucast", 0777);
   unlink(CMD_PIPE);
   mkfifo(CMD_PIPE, 0666);
 
@@ -840,7 +840,7 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "========================================" << std::endl;
-  std::cout << "           ClearCastFX" << std::endl;
+  std::cout << "           BluCast" << std::endl;
   std::cout << "========================================" << std::endl;
   std::cout << "Model directory: " << modelDir << std::endl;
   std::cout << "Camera ID: " << cameraId << std::endl;
@@ -862,6 +862,6 @@ int main(int argc, char **argv) {
   g_running = false;
   cmdThread.join();
 
-  std::cout << "ClearCastFX closed." << std::endl;
+  std::cout << "BluCast closed." << std::endl;
   return result;
 }

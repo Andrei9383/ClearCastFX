@@ -1,6 +1,6 @@
-# Contributing to ClearCastFX
+# Contributing to BluCast
 
-Thank you for your interest in contributing to ClearCastFX! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to BluCast! This document provides guidelines and information for contributors.
 
 ## Code of Conduct
 
@@ -50,8 +50,8 @@ Feature requests are welcome! Please:
 
 1. Clone your fork:
    ```bash
-   git clone https://github.com/yourusername/clearcastfx.git
-   cd clearcastfx
+   git clone https://github.com/yourusername/blucast.git
+   cd blucast
    ```
 
 2. Download the NVIDIA Maxine SDK from [NVIDIA Developer](https://catalog.ngc.nvidia.com/) and extract to `sdk/`
@@ -64,7 +64,7 @@ Feature requests are welcome! Please:
 ### Code Structure
 
 ```
-clearcastfx/
+blucast/
 ├── app/
 │   ├── control_panel.py    # Qt GUI application
 │   ├── videofx_server.cpp  # C++ video processing server

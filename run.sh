@@ -1,9 +1,9 @@
 #!/bin/bash
-# ClearCastFX Launcher
+# BluCast Launcher
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GHCR_IMAGE="ghcr.io/andrei9383/clearcastfx:latest"
-LOCAL_IMAGE="localhost/clearcastfx:latest"
+GHCR_IMAGE="ghcr.io/andrei9383/blucast:latest"
+LOCAL_IMAGE="localhost/blucast:latest"
 
 # Detect container runtime
 if command -v podman &> /dev/null; then
@@ -21,14 +21,14 @@ else
     IMAGE_NAME="$GHCR_IMAGE"
     # Pull if not present or if --pull flag is passed
     if [[ "$1" == "--pull" ]] || ! $CONTAINER_CMD inspect "$IMAGE_NAME" &>/dev/null; then
-        echo "Pulling ClearCastFX from GitHub Container Registry..."
+        echo "Pulling BluCast from GitHub Container Registry..."
         $CONTAINER_CMD pull "$IMAGE_NAME"
     fi
 fi
 
 # Ensure v4l2loopback is loaded
 if ! lsmod | grep -q v4l2loopback 2>/dev/null; then
-    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1 2>/dev/null || true
+    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 2>/dev/null || true
 fi
 
 # Allow X11 connections from container
@@ -46,10 +46,10 @@ if [ -z "$CAMERA_ARGS" ]; then
     echo "Warning: No camera devices found. The app will start but camera may not work."
 fi
 
-echo "Starting ClearCastFX..."
+echo "Starting BluCast..."
 
 # Shared IPC directory
-mkdir -p /tmp/clearcastfx
+mkdir -p /tmp/blucast
 
 # Start the vcam consumer watcher
 WATCHER_PID=""
@@ -66,7 +66,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Create config directory for persistent settings
-CONFIG_DIR="$HOME/.config/clearcastfx"
+CONFIG_DIR="$HOME/.config/blucast"
 mkdir -p "$CONFIG_DIR"
 
 # Configure GPU arguments based on container runtime
@@ -109,8 +109,8 @@ $CONTAINER_CMD run --rm \
     $XAUTH_ARGS \
     $DBUS_ARGS \
     -v "$HOME:/host_home:ro" \
-    -v "$CONFIG_DIR:/root/.config/clearcastfx:rw" \
-    -v "/tmp/clearcastfx:/tmp/clearcastfx:rw" \
+    -v "$CONFIG_DIR:/root/.config/blucast:rw" \
+    -v "/tmp/blucast:/tmp/blucast:rw" \
     -v "$SCRIPT_DIR/output:/output" \
     -v "/dev/dri:/dev/dri" \
     --ipc=host \
@@ -121,7 +121,7 @@ EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
     echo ""
-    echo "ClearCastFX exited with code $EXIT_CODE"
+    echo "BluCast exited with code $EXIT_CODE"
     echo ""
     echo "Common issues:"
     echo "  - No camera: Plug in a webcam and try again"

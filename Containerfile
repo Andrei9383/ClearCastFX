@@ -1,4 +1,4 @@
-# ClearCastFX - Containerfile
+# BluCast - Containerfile
 
 FROM docker.io/nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04 AS builder
 
@@ -26,7 +26,7 @@ RUN echo 'set(TensorRT_ROOT /usr/local/TensorRT-8.5.1.7)\n\
     set(TensorRT_VERSION 8.5.1)' > /build/FindTensorRT.cmake
 
 COPY app/ /app/
-RUN mkdir -p /build/clearcastfx && cd /build/clearcastfx && \
+RUN mkdir -p /build/blucast && cd /build/blucast && \
     cmake /app \
     -DCMAKE_MODULE_PATH=/build \
     -DCMAKE_CXX_FLAGS='-I/usr/local/VideoFX/include -I/usr/local/VideoFX/share/samples/utils' \
@@ -35,9 +35,9 @@ RUN mkdir -p /build/clearcastfx && cd /build/clearcastfx && \
 
 FROM docker.io/nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04
 
-LABEL maintainer="ClearCastFX"
+LABEL maintainer="BluCast"
 LABEL description="AI-powered video effects with virtual camera output"
-LABEL org.opencontainers.image.source="https://github.com/Andrei9383/ClearCastFX"
+LABEL org.opencontainers.image.source="https://github.com/Andrei9383/BluCast"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -69,33 +69,33 @@ RUN pip3 install --no-cache-dir \
     Pillow \
     PySide6
 
-RUN mkdir -p /usr/local/lib/clearcastfx
+RUN mkdir -p /usr/local/lib/blucast
 
-COPY --from=builder /build/clearcastfx/clearcastfx_server /app/clearcastfx_server
+COPY --from=builder /build/blucast/blucast_server /app/blucast_server
 
-COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvinfer.so.8* /usr/local/lib/clearcastfx/
-COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvinfer_plugin.so.8* /usr/local/lib/clearcastfx/
-COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvparsers.so.8* /usr/local/lib/clearcastfx/
-COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvonnxparser.so.8* /usr/local/lib/clearcastfx/
-COPY --from=builder /usr/local/VideoFX/lib/libVideoFX.so* /usr/local/lib/clearcastfx/
-COPY --from=builder /usr/local/VideoFX/lib/libNVCVImage.so* /usr/local/lib/clearcastfx/
-COPY --from=builder /usr/local/VideoFX/lib/libNVTRTLogger.so* /usr/local/lib/clearcastfx/
+COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvinfer.so.8* /usr/local/lib/blucast/
+COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvinfer_plugin.so.8* /usr/local/lib/blucast/
+COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvparsers.so.8* /usr/local/lib/blucast/
+COPY --from=builder /usr/local/TensorRT-8.5.1.7/lib/libnvonnxparser.so.8* /usr/local/lib/blucast/
+COPY --from=builder /usr/local/VideoFX/lib/libVideoFX.so* /usr/local/lib/blucast/
+COPY --from=builder /usr/local/VideoFX/lib/libNVCVImage.so* /usr/local/lib/blucast/
+COPY --from=builder /usr/local/VideoFX/lib/libNVTRTLogger.so* /usr/local/lib/blucast/
 
 COPY --from=builder /usr/local/VideoFX/lib/models /usr/local/VideoFX/lib/models
 
-RUN ln -sf /usr/local/lib/clearcastfx/libVideoFX.so /usr/local/lib/clearcastfx/libNVVideoEffects.so
+RUN ln -sf /usr/local/lib/blucast/libVideoFX.so /usr/local/lib/blucast/libNVVideoEffects.so
 
 COPY app/control_panel.py /app/
 COPY assets/ /app/assets/
 
-ENV LD_LIBRARY_PATH=/usr/local/lib/clearcastfx:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/local/lib/blucast:$LD_LIBRARY_PATH
 WORKDIR /app
 
-RUN mkdir -p /output /tmp/clearcastfx
+RUN mkdir -p /output /tmp/blucast
 
 RUN echo '#!/bin/bash\n\
-    echo "Starting ClearCastFX..."\n\
-    /app/clearcastfx_server --model_dir=/usr/local/VideoFX/lib/models &\n\
+    echo "Starting BluCast..."\n\
+    /app/blucast_server --model_dir=/usr/local/VideoFX/lib/models &\n\
     SERVER_PID=$!\n\
     sleep 2\n\
     python3 /app/control_panel.py\n\

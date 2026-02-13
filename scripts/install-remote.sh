@@ -1,6 +1,6 @@
 #!/bin/bash
-# ClearCastFX Remote Installation Script
-# Downloads and sets up ClearCastFX from GitHub Container Registry
+# BluCast Remote Installation Script
+# Downloads and sets up BluCast from GitHub Container Registry
 
 set -e
 
@@ -10,13 +10,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-GHCR_IMAGE="ghcr.io/andrei9383/clearcastfx:latest"
-INSTALL_DIR="$HOME/.local/share/clearcastfx"
+GHCR_IMAGE="ghcr.io/andrei9383/blucast:latest"
+INSTALL_DIR="$HOME/.local/share/blucast"
 BIN_DIR="$HOME/.local/bin"
 
 echo -e "${BLUE}"
 echo "======================================"
-echo "     ClearCastFX Quick Installer"
+echo "     BluCast Quick Installer"
 echo "    AI-Powered Video Effects"
 echo "======================================"
 echo -e "${NC}"
@@ -76,7 +76,7 @@ setup_vcam() {
     fi
     
     if modinfo v4l2loopback &>/dev/null; then
-        sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1 || true
+        sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 || true
         echo -e "  Virtual camera created at /dev/video10"
     else
         echo -e "  ${YELLOW}v4l2loopback not installed${NC}"
@@ -88,7 +88,7 @@ setup_vcam() {
 
 # Pull container from GHCR
 pull_container() {
-    echo -e "${YELLOW}[3/4]${NC} Pulling ClearCastFX container..."
+    echo -e "${YELLOW}[3/4]${NC} Pulling BluCast container..."
     echo -e "  This may take a few minutes on first install..."
     
     if $CONTAINER_CMD pull "$GHCR_IMAGE"; then
@@ -108,9 +108,9 @@ create_launcher() {
     # Create run script
     cat > "$INSTALL_DIR/run.sh" << 'RUNSCRIPT'
 #!/bin/bash
-# ClearCastFX Launcher
+# BluCast Launcher
 
-GHCR_IMAGE="ghcr.io/andrei9383/clearcastfx:latest"
+GHCR_IMAGE="ghcr.io/andrei9383/blucast:latest"
 
 # Detect container runtime
 if command -v podman &> /dev/null; then
@@ -121,7 +121,7 @@ fi
 
 # Ensure v4l2loopback is loaded
 if ! lsmod | grep -q v4l2loopback 2>/dev/null; then
-    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1 2>/dev/null || true
+    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 2>/dev/null || true
 fi
 
 # Allow X11 connections from container
@@ -135,13 +135,13 @@ for cam in /dev/video*; do
     fi
 done
 
-echo "Starting ClearCastFX..."
+echo "Starting BluCast..."
 
 # Shared IPC directory
-mkdir -p /tmp/clearcastfx
+mkdir -p /tmp/blucast
 
 # Create config directory for persistent settings
-CONFIG_DIR="$HOME/.config/clearcastfx"
+CONFIG_DIR="$HOME/.config/blucast"
 mkdir -p "$CONFIG_DIR"
 
 # Configure GPU arguments based on container runtime
@@ -184,8 +184,8 @@ $CONTAINER_CMD run --rm \
     $XAUTH_ARGS \
     $DBUS_ARGS \
     -v "$HOME:/host_home:ro" \
-    -v "$CONFIG_DIR:/root/.config/clearcastfx:rw" \
-    -v "/tmp/clearcastfx:/tmp/clearcastfx:rw" \
+    -v "$CONFIG_DIR:/root/.config/blucast:rw" \
+    -v "/tmp/blucast:/tmp/blucast:rw" \
     --ipc=host \
     --network host \
     "$GHCR_IMAGE" 2>&1
@@ -194,7 +194,7 @@ EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
     echo ""
-    echo "ClearCastFX exited with code $EXIT_CODE"
+    echo "BluCast exited with code $EXIT_CODE"
     echo ""
     echo "Common issues:"
     echo "  - No camera: Plug in a webcam and try again"
@@ -206,10 +206,10 @@ RUNSCRIPT
     chmod +x "$INSTALL_DIR/run.sh"
     
     # Create symlink in bin directory
-    ln -sf "$INSTALL_DIR/run.sh" "$BIN_DIR/clearcastfx"
+    ln -sf "$INSTALL_DIR/run.sh" "$BIN_DIR/blucast"
     
     # Download logo for desktop entry
-    LOGO_URL="https://raw.githubusercontent.com/Andrei9383/ClearCastFX/main/assets/logo.svg"
+    LOGO_URL="https://raw.githubusercontent.com/Andrei9383/BluCast/main/assets/logo.svg"
     LOGO_PATH="$INSTALL_DIR/logo.svg"
     if command -v curl &> /dev/null; then
         curl -fsSL "$LOGO_URL" -o "$LOGO_PATH" 2>/dev/null || true
@@ -218,7 +218,7 @@ RUNSCRIPT
     fi
 
     # Create desktop entry
-    DESKTOP_FILE="$HOME/.local/share/applications/clearcastfx.desktop"
+    DESKTOP_FILE="$HOME/.local/share/applications/blucast.desktop"
     mkdir -p "$(dirname "$DESKTOP_FILE")"
     
     # Use downloaded logo if available, otherwise fall back to generic icon
@@ -230,7 +230,7 @@ RUNSCRIPT
 
     cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
-Name=ClearCastFX
+Name=BluCast
 Comment=AI-Powered Video Effects
 Exec=$INSTALL_DIR/run.sh
 Icon=$ICON_VALUE
@@ -239,7 +239,7 @@ Type=Application
 Categories=Video;AudioVideo;
 DESKTOP
 
-    echo -e "  Launcher created: ${GREEN}clearcastfx${NC}"
+    echo -e "  Launcher created: ${GREEN}blucast${NC}"
     echo -e "  Desktop entry created"
 }
 
@@ -255,8 +255,8 @@ main() {
     echo "       Installation Complete!"
     echo "======================================${NC}"
     echo ""
-    echo -e "To start ClearCastFX, run:"
-    echo -e "  ${BLUE}clearcastfx${NC}"
+    echo -e "To start BluCast, run:"
+    echo -e "  ${BLUE}blucast${NC}"
     echo ""
     echo -e "Or find it in your application menu."
     echo ""
@@ -268,7 +268,7 @@ main() {
         echo -e "  ${BLUE}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"
         echo ""
     else
-        echo -e "${YELLOW}Note:${NC} If 'clearcastfx' is not found, restart your terminal or run: ${BLUE}source ~/.bashrc${NC}"
+        echo -e "${YELLOW}Note:${NC} If 'blucast' is not found, restart your terminal or run: ${BLUE}source ~/.bashrc${NC}"
         echo ""
     fi
 }

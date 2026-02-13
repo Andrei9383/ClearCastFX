@@ -1,5 +1,5 @@
 #!/bin/bash
-# Push locally-built ClearCastFX container to GitHub Container Registry
+# Push locally-built BluCast container to GitHub Container Registry
 #
 # Prerequisites:
 #   1. Build the container locally first: ./install.sh
@@ -19,8 +19,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-LOCAL_IMAGE="localhost/clearcastfx:latest"
-GHCR_IMAGE="ghcr.io/andrei9383/clearcastfx"
+LOCAL_IMAGE="localhost/blucast:latest"
+GHCR_IMAGE="ghcr.io/andrei9383/blucast"
 
 # Detect container runtime
 if command -v podman &> /dev/null; then
@@ -31,7 +31,7 @@ fi
 
 echo -e "${BLUE}"
 echo "======================================"
-echo "   Push ClearCastFX to GHCR"
+echo "   Push BluCast to GHCR"
 echo "======================================"
 echo -e "${NC}"
 
@@ -90,7 +90,7 @@ echo -e "  ${BLUE}$GHCR_IMAGE:latest${NC}"
 echo -e "  ${BLUE}$GHCR_IMAGE:$VERSION${NC}"
 echo ""
 echo -e "${YELLOW}Important:${NC} To make the package public:"
-echo "  1. Go to https://github.com/users/Andrei9383/packages/container/clearcastfx/settings"
+echo "  1. Go to https://github.com/users/Andrei9383/packages/container/blucast/settings"
 echo "  2. Scroll to 'Danger Zone'"
 echo "  3. Click 'Change visibility' → 'Public'"
 echo ""

@@ -1,9 +1,9 @@
 #!/bin/bash
-# ClearCastFX - Virtual camera consumer watcher
+# BluCast - Virtual camera consumer watcher
 # Monitors for applications using the virtual camera device
 
 VCAM_DEVICE="${1:-/dev/video10}"
-CMD_PIPE="/tmp/clearcastfx/clearcastfx_cmd"
+CMD_PIPE="/tmp/blucast/blucast_cmd"
 
 send_consumers() {
     local count="$1"

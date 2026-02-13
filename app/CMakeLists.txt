@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ClearCastFX LANGUAGES CXX)
+project(BluCast LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -40,9 +40,9 @@ set(SOURCE_FILES
 )
 
 # Build the server
-add_executable(clearcastfx_server ${SOURCE_FILES})
+add_executable(blucast_server ${SOURCE_FILES})
 
-target_link_libraries(clearcastfx_server
+target_link_libraries(blucast_server
     ${OpenCV_LIBS}
     ${VFX_LIB}/libVideoFX.so
     ${VFX_LIB}/libNVCVImage.so
@@ -53,7 +53,7 @@ target_link_libraries(clearcastfx_server
 )
 
 # Set rpath for runtime library loading
-set_target_properties(clearcastfx_server PROPERTIES
+set_target_properties(blucast_server PROPERTIES
     BUILD_RPATH "${VFX_LIB};${TRT_ROOT}/lib"
     INSTALL_RPATH "${VFX_LIB};${TRT_ROOT}/lib"
 )

@@ -1,6 +1,7 @@
 <div align="center">
 
-<h1 align="center"><img src="assets/logo.svg" alt="ClearCastFX Logo" width="64" /> ClearCastFX</h1>
+
+<img src="assets/logo.svg" alt="BluCast Logo" width="64" /> <h1 align="center">BluCast</h1>
 
 <p align="center">
   Real-time AI-powered video effects using NVIDIA Maxine VideoFX SDK.<br>
@@ -10,61 +11,69 @@
 </div>
 
 <p align="center">
-  <img src="assets/preview.png" alt="ClearCastFX preview" width="600" />
+  <img src="assets/preview.png" alt="BluCast preview" width="300" />
 </p>
 
-## Table of Contents
 
+<!-- omit from toc -->
+## Table of Contents
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
-- [Building from Source](#building-from-source)
 - [Usage](#usage)
-- [Virtual Camera Setup](#virtual-camera-setup)
 - [Configuration](#configuration)
+- [Building from Source](#building-from-source)
+  - [1. Clone the repository](#1-clone-the-repository)
+  - [2. Download the NVIDIA Maxine SDK, if you have an AI Enterprise subscription :(](#2-download-the-nvidia-maxine-sdk-if-you-have-an-ai-enterprise-subscription-)
+  - [3. Extract SDKs to the `sdk/` directory](#3-extract-sdks-to-the-sdk-directory)
+  - [4. Build and run](#4-build-and-run)
+- [Virtual Camera Setup](#virtual-camera-setup)
 - [Troubleshooting](#troubleshooting)
+  - [No camera detected](#no-camera-detected)
+  - [GPU errors](#gpu-errors)
 - [License](#license)
+  - [Third-Party Components](#third-party-components)
 - [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
+
 
 ## Features
 
 - **Background Removal**
 - **Background Replacement** - Use any image as your background
 - **Background Blur**
-- **Noise Reduction** - AI denoising for cleaner video
 - **On-demand camera usage** - Camera (and processing power) is only used when needed
 
 ## Prerequisites
 
-The following must be installed on your host system **before** installing ClearCastFX:
+The following must be installed on your host system **before** installing BluCast:
 
-- **NVIDIA GPU** (GTX 1060 or better recommended)
-- **NVIDIA drivers** with CUDA support — verify with `nvidia-smi`
+- **NVIDIA GPU**
+- **NVIDIA drivers** with CUDA support - verify with `nvidia-smi`
 - **Podman or Docker**
-- **[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)** — required for GPU passthrough into the container
+- **[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)** - required for GPU passthrough into the container
   - Fedora: `sudo dnf install nvidia-container-toolkit`
   - Ubuntu: follow the [official install guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-- **[v4l2loopback](https://github.com/umlaeute/v4l2loopback)** — kernel module for the virtual camera device
+- **[v4l2loopback](https://github.com/umlaeute/v4l2loopback)** - kernel module for the virtual camera device
   - Fedora: `sudo dnf install v4l2loopback`
   - Ubuntu: `sudo apt install v4l2loopback-dkms`
 
 ## Quick Start
 
-The easiest way to get ClearCastFX running:
+The easiest way to get BluCast running:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Andrei9383/ClearCastFX/main/scripts/install-remote.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Andrei9383/BluCast/main/scripts/install-remote.sh | bash
 ```
 
 Or manually:
 
 ```bash
 # Pull the container
-podman pull ghcr.io/andrei9383/clearcastfx:latest
+podman pull ghcr.io/andrei9383/blucast:latest
 
 # Setup virtual camera (requires v4l2loopback)
-sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1
+sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1
 
 # Run
 podman run --rm \
@@ -73,12 +82,39 @@ podman run --rm \
   --device /dev/video10 \
   -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
-  -v $HOME/.config/clearcastfx:/root/.config/clearcastfx \
+  -v $HOME/.config/blucast:/root/.config/blucast \
   --network host \
-  ghcr.io/andrei9383/clearcastfx:latest
+  ghcr.io/andrei9383/blucast:latest
 ```
 
-After installation, run `clearcastfx` from terminal or find it in your application menu.
+After installation, run `blucast` from terminal or find it in your application menu.
+
+## Usage
+
+1. Launch Blucast by running the desktop entry application or by running `./run.sh` at the install location
+2. Select your desired effect from the dropdown
+3. For custom backgrounds, click "Browse" and select an image
+4. The virtual camera appears as `/dev/video10`
+5. Select "BluCast Camera" in your video conferencing app
+
+## Configuration
+
+Settings are stored in `~/.config/blucast/settings.json` and persist between sessions.
+
+The configuration file looks like this:
+```json
+{
+  "effect_mode"     : "",      // "blur" | "replace" | "remove" | "none"
+  "background_image": "",      // path to image
+  "blur_strength"   : 0,       // 0-100
+  "vcam_enabled"    : False,   // True | False
+  "preview_enabled" : False,   // True | False
+  "overlay_enabled" : False,   // True | False
+  "resolution"      : "",      // resolution, eg "1280x720"
+  "fps"             : 30,
+  "input_device"    : "",      // device path, eg "/dev/video0"
+}
+```
 
 ## Building from Source
 
@@ -93,8 +129,8 @@ If you prefer to build locally (if you have the SDK available):
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Andrei9383/ClearCastFX.git
-cd ClearCastFX
+git clone https://github.com/Andrei9383/BluCast.git
+cd BluCast
 ```
 
 ### 2. Download the NVIDIA Maxine SDK, if you have an AI Enterprise subscription :(
@@ -136,27 +172,14 @@ sdk/
 ./run.sh
 ```
 
-## Usage
 
-1. Launch ClearCastFX by running the desktop entry application or by running `./run.sh` at the install location
-2. Select your desired effect from the dropdown
-3. For custom backgrounds, click "Browse" and select an image
-4. The virtual camera appears as `/dev/video10`
-5. Select "ClearCastFX Camera" in your video conferencing app
-
-### Keyboard Shortcuts (Preview Window)
-
-| Key | Action |
-|-----|--------|
-| Q / ESC | Quit |
-| F | Toggle FPS display |
 
 ## Virtual Camera Setup
 
-ClearCastFX uses v4l2loopback to create a virtual camera. The installer handles this automatically, but if needed:
+BluCast uses v4l2loopback to create a virtual camera. The installer handles this automatically, but if needed:
 
 ```bash
-sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1
+sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1
 ```
 
 To load automatically on boot, create `/etc/modules-load.d/v4l2loopback.conf`:
@@ -166,12 +189,8 @@ v4l2loopback
 
 And `/etc/modprobe.d/v4l2loopback.conf`:
 ```
-options v4l2loopback devices=1 video_nr=10 card_label="ClearCastFX Camera" exclusive_caps=1
+options v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1
 ```
-
-## Configuration
-
-Settings are stored in `~/.config/clearcastfx/settings.json` and persist between sessions.
 
 ## Troubleshooting
 
