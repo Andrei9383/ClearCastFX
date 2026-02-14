@@ -153,10 +153,22 @@ fi
 
 # Handle Xauthority
 XAUTH_ARGS=""
-if [ -n "$XAUTHORITY" ] && [ -f "$XAUTHORITY" ]; then
-    XAUTH_ARGS="-v $XAUTHORITY:/root/.Xauthority:ro"
-elif [ -f "$HOME/.Xauthority" ]; then
-    XAUTH_ARGS="-v $HOME/.Xauthority:/root/.Xauthority:ro"
+CONTAINER_XAUTH="/tmp/blucast/.docker.xauth"
+if command -v xauth &> /dev/null && [ -n "$DISPLAY" ]; then
+    # Generate a fresh Xauthority file with the current display's cookie
+    touch "$CONTAINER_XAUTH"
+    xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$CONTAINER_XAUTH" nmerge - 2>/dev/null
+    if [ -s "$CONTAINER_XAUTH" ]; then
+        XAUTH_ARGS="-v $CONTAINER_XAUTH:/root/.Xauthority:ro -e XAUTHORITY=/root/.Xauthority"
+    fi
+fi
+# Or mount existing Xauthority file directly
+if [ -z "$XAUTH_ARGS" ]; then
+    if [ -n "$XAUTHORITY" ] && [ -f "$XAUTHORITY" ]; then
+        XAUTH_ARGS="-v $XAUTHORITY:/root/.Xauthority:ro"
+    elif [ -f "$HOME/.Xauthority" ]; then
+        XAUTH_ARGS="-v $HOME/.Xauthority:/root/.Xauthority:ro"
+    fi
 fi
 
 # D-Bus socket for system tray support
