@@ -84,6 +84,9 @@ if [ -e /dev/video10 ]; then
         sudo udevadm control --reload-rules 2>/dev/null || true
     fi
     sudo udevadm trigger --action=change /dev/video10 2>/dev/null || true
+    sleep 1
+
+    refresh_camera_portal
 fi
 
 register_pipewire_camera() {
