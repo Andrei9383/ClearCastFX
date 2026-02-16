@@ -26,6 +26,21 @@ else
     fi
 fi
 
+refresh_camera_portal() {
+    local restarted=false
+
+    for svc in wireplumber.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service xdg-desktop-portal-wlr.service; do
+        if systemctl --user list-unit-files "$svc" >/dev/null 2>&1; then
+            systemctl --user restart "$svc" 2>/dev/null || true
+            restarted=true
+        fi
+    done
+
+    if [ "$restarted" = true ]; then
+        sleep 2
+    fi
+}
+
 # Ensure v4l2loopback is loaded with proper settings
 if [ ! -e /dev/video10 ]; then
     if lsmod | grep -q v4l2loopback 2>/dev/null; then
@@ -53,26 +68,52 @@ else
     echo "  Install v4l2loopback: sudo dnf install v4l2loopback (Fedora) or sudo apt install v4l2loopback-dkms (Ubuntu)"
 fi
 
+# Persist v4l2loopback options so the module loads correctly across reboots.
+MODPROBE_CONF="/etc/modprobe.d/v4l2loopback.conf"
+MODPROBE_LINE='options v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 max_buffers=2 max_openers=10'
+if [ ! -f "$MODPROBE_CONF" ] || ! grep -q 'video_nr=10' "$MODPROBE_CONF" 2>/dev/null; then
+    echo "$MODPROBE_LINE" | sudo tee "$MODPROBE_CONF" >/dev/null 2>&1 || true
+fi
+
+UDEV_RULE_FILE="/etc/udev/rules.d/83-blucast-vcam.rules"
+UDEV_RULE='SUBSYSTEM=="video4linux", KERNEL=="video10", ENV{ID_V4L_PRODUCT}="BluCast Camera", ENV{ID_V4L_CAPABILITIES}=":capture:"'
 if [ -e /dev/video10 ]; then
-    if command -v wpctl &> /dev/null; then
-        if ! wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
-            echo "Restarting WirePlumber to detect virtual camera..."
-            systemctl --user restart wireplumber.service 2>/dev/null || true
+    # Install udev rule if not present
+    if [ ! -f "$UDEV_RULE_FILE" ] || ! grep -q "KERNEL==\"video10\"" "$UDEV_RULE_FILE" 2>/dev/null; then
+        echo "$UDEV_RULE" | sudo tee "$UDEV_RULE_FILE" >/dev/null 2>&1 || true
+        sudo udevadm control --reload-rules 2>/dev/null || true
+    fi
+    sudo udevadm trigger --action=change /dev/video10 2>/dev/null || true
+fi
+
+register_pipewire_camera() {
+    local dev="/dev/video10"
+    local timeout=60
+    local waited=0
+    # Wait until a process has the device open for writing
+    while [ $waited -lt $timeout ]; do
+        if [ -e "$dev" ] && sudo lsof "$dev" 2>/dev/null | awk 'NR>1' | grep -q 'w$'; then
             sleep 2
-            if wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
-                echo "Virtual camera registered with PipeWire"
+            sudo udevadm trigger --action=change "$dev" 2>/dev/null || true
+            sleep 1
+            systemctl --user restart wireplumber 2>/dev/null || true
+            sleep 3
+            for svc in xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service; do
+                systemctl --user restart "$svc" 2>/dev/null || true
+            done
+            if wpctl status 2>/dev/null | grep -qi 'BluCast.*Source\|BluCast.*(V4L2)'; then
+                echo "Virtual camera registered with PipeWire (Firefox should see it)"
             else
                 echo "Warning: Virtual camera may not be visible to PipeWire apps"
-                echo "  Try manually: systemctl --user restart wireplumber"
+                echo "  Try manually: systemctl --user restart wireplumber xdg-desktop-portal"
             fi
-        else
-            echo "Virtual camera already registered with PipeWire"
+            return
         fi
-    fi
-    if command -v udevadm &>/dev/null; then
-        sudo udevadm trigger --action=add /dev/video10 2>/dev/null || true
-    fi
-fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    echo "Warning: Timed out waiting for server to open virtual camera"
+}
 
 # Allow X11 connections from container
 xhost +local: 2>/dev/null || true
@@ -101,9 +142,17 @@ if [ -f "$SCRIPT_DIR/scripts/vcam_watcher.sh" ]; then
     WATCHER_PID=$!
 fi
 
+# Start PipeWire camera registration in background
+PW_REFRESH_PID=""
+register_pipewire_camera &
+PW_REFRESH_PID=$!
+
 cleanup() {
     if [ -n "$WATCHER_PID" ] && kill -0 "$WATCHER_PID" 2>/dev/null; then
         kill "$WATCHER_PID" 2>/dev/null
+    fi
+    if [ -n "$PW_REFRESH_PID" ] && kill -0 "$PW_REFRESH_PID" 2>/dev/null; then
+        kill "$PW_REFRESH_PID" 2>/dev/null
     fi
 }
 trap cleanup EXIT
