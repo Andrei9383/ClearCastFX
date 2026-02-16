@@ -31,6 +31,8 @@ jobs:
 
       - name: Resolve Digest and Sign
         run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          
           if [ "${{ github.event_name }}" == "release" ]; then
             TAG="${{ github.ref_name }}"
             echo "Triggered by Release. Using tag: $TAG"
@@ -39,17 +41,17 @@ jobs:
             echo "Triggered Manually. Using tag: $TAG"
           fi
 
-          IMAGE_URI="ghcr.io/${{ github.repository }}:$TAG"
+          IMAGE_URI="ghcr.io/$REPO_NAME:$TAG"
           
           echo "Targeting Image: $IMAGE_URI"
 
           DIGEST=$(docker manifest inspect $IMAGE_URI -v | jq -r '.Descriptor.digest')
           
           if [ -z "$DIGEST" ] || [ "$DIGEST" == "null" ]; then
-            echo "Error: Could not find digest for $IMAGE_URI. Did you push it yet?"
+            echo "::error::Could not find digest for $IMAGE_URI. Did you push it yet?"
             exit 1
           fi
 
           echo "Found Digest: $DIGEST"
-          
-          cosign sign --yes "ghcr.io/${{ github.repository }}@$DIGEST"
+
+          cosign sign --yes "ghcr.io/$REPO_NAME@$DIGEST"
