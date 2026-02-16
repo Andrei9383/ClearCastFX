@@ -369,7 +369,25 @@ public:
         if (!currentDevice.empty()) {
           cap.open(currentDevice, cv::CAP_V4L2);
         } else {
-          cap.open(cameraId, cv::CAP_V4L2);
+          // Auto-detect: try /dev/video0 through /dev/video9
+          bool found = false;
+          for (int idx = 0; idx <= 9; idx++) {
+            std::string devPath = "/dev/video" + std::to_string(idx);
+            if (devPath == VCAM_DEVICE) continue;
+            struct stat st;
+            if (stat(devPath.c_str(), &st) != 0) continue;
+            cap.open(devPath, cv::CAP_V4L2);
+            if (cap.isOpened()) {
+              std::cout << "Auto-detected camera: " << devPath << std::endl;
+              currentDevice = devPath;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            // Fallback to camera index
+            cap.open(cameraId, cv::CAP_V4L2);
+          }
         }
         if (!cap.isOpened()) {
           std::cerr << "Error: Cannot open camera " << (currentDevice.empty() ? std::to_string(cameraId) : currentDevice) << std::endl;

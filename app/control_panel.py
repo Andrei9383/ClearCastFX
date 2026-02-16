@@ -176,7 +176,7 @@ class Settings:
         "overlay_enabled": False,
         "resolution": "1280x720",
         "fps": 30,
-        "input_device": "/dev/video0",
+        "input_device": "",
     }
 
     def __init__(self):
