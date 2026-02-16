@@ -259,6 +259,7 @@ public:
 
     _vcamWidth = width;
     _vcamHeight = height;
+    _vcamStreaming = true;
     std::cout << "Virtual camera: " << VCAM_DEVICE << " @ " << width << "x"
               << height << " " << fps << "fps (YUV420)" << std::endl;
     return true;
@@ -302,7 +303,7 @@ public:
       }
     }
 
-    cv::Mat yuv;
+    static cv::Mat yuv;
     cv::cvtColor(bgr, yuv, cv::COLOR_BGR2YUV_I420);
     write(_vcamFd, yuv.data, yuv.total() * yuv.elemSize());
   }
