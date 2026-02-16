@@ -1,0 +1,55 @@
+name: Signer
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The image tag to sign (e.g., v1.0.0)'
+        required: true
+        type: string
+
+  release:
+    types: [published]
+
+jobs:
+  sign-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve Digest and Sign
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            TAG="${{ github.ref_name }}"
+            echo "Triggered by Release. Using tag: $TAG"
+          else
+            TAG="${{ inputs.tag }}"
+            echo "Triggered Manually. Using tag: $TAG"
+          fi
+
+          IMAGE_URI="ghcr.io/${{ github.repository }}:$TAG"
+          
+          echo "Targeting Image: $IMAGE_URI"
+
+          DIGEST=$(docker manifest inspect $IMAGE_URI -v | jq -r '.Descriptor.digest')
+          
+          if [ -z "$DIGEST" ] || [ "$DIGEST" == "null" ]; then
+            echo "Error: Could not find digest for $IMAGE_URI. Did you push it yet?"
+            exit 1
+          fi
+
+          echo "Found Digest: $DIGEST"
+          
+          cosign sign --yes "ghcr.io/${{ github.repository }}@$DIGEST"
