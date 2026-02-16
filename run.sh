@@ -26,14 +26,52 @@ else
     fi
 fi
 
-# Ensure v4l2loopback is loaded
+# Ensure v4l2loopback is loaded with proper settings
 if [ ! -e /dev/video10 ]; then
     if lsmod | grep -q v4l2loopback 2>/dev/null; then
         echo "Reloading v4l2loopback with correct device number..."
         sudo modprobe -r v4l2loopback 2>/dev/null || true
         sleep 1
     fi
-    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 2>/dev/null || true
+    sudo modprobe v4l2loopback \
+        devices=1 \
+        video_nr=10 \
+        card_label="BluCast Camera" \
+        exclusive_caps=1 \
+        max_buffers=2 \
+        max_openers=10 \
+        2>/dev/null || true
+    sleep 1
+fi
+
+# Ensure the virtual camera device is accessible
+if [ -e /dev/video10 ]; then
+    sudo chmod 666 /dev/video10 2>/dev/null || true
+    echo "Virtual camera ready at /dev/video10"
+else
+    echo "Warning: Virtual camera device /dev/video10 not found"
+    echo "  Install v4l2loopback: sudo dnf install v4l2loopback (Fedora) or sudo apt install v4l2loopback-dkms (Ubuntu)"
+fi
+
+if [ -e /dev/video10 ]; then
+    if command -v wpctl &> /dev/null; then
+        if ! wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
+            echo "Restarting WirePlumber to detect virtual camera..."
+            systemctl --user restart wireplumber.service 2>/dev/null || true
+            sleep 2
+            if wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
+                echo "Virtual camera registered with PipeWire"
+            else
+                echo "Warning: Virtual camera may not be visible to PipeWire apps"
+                echo "  Try manually: systemctl --user restart wireplumber"
+            fi
+        else
+            echo "Virtual camera already registered with PipeWire"
+        fi
+    fi
+    if command -v udevadm &>/dev/null; then
+        sudo udevadm trigger --action=add /dev/video10 2>/dev/null || true
+    fi
 fi
 
 # Allow X11 connections from container

@@ -60,12 +60,14 @@ install_v4l2loopback() {
     
     if ! modinfo v4l2loopback &>/dev/null; then
         echo -e "  ${YELLOW}v4l2loopback not installed${NC}"
-        echo -e "  Install with: ${BLUE}sudo dnf install v4l2loopback${NC}"
+        echo -e "  Install with: ${BLUE}sudo dnf install v4l2loopback${NC} (Fedora)"
+        echo -e "  Install with: ${BLUE}sudo apt install v4l2loopback-dkms${NC} (Ubuntu/Debian)"
         return
     fi
     
     if [ -e /dev/video10 ]; then
         echo -e "  v4l2loopback already loaded at /dev/video10"
+        sudo chmod 666 /dev/video10 2>/dev/null || true
         return
     fi
     
@@ -75,10 +77,38 @@ install_v4l2loopback() {
         sleep 1
     fi
     
-    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 || true
+    sudo modprobe v4l2loopback \
+        devices=1 \
+        video_nr=10 \
+        card_label="BluCast Camera" \
+        exclusive_caps=1 \
+        max_buffers=2 \
+        max_openers=10 || true
+    
+    sleep 1
     
     if [ -e /dev/video10 ]; then
+        sudo chmod 666 /dev/video10 2>/dev/null || true
         echo -e "  Virtual camera created at /dev/video10"
+        
+        if command -v wpctl &> /dev/null; then
+            if ! wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
+                echo -e "  Restarting WirePlumber to detect virtual camera..."
+                systemctl --user restart wireplumber.service 2>/dev/null || true
+                sleep 2
+                if wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
+                    echo -e "  Virtual camera registered with PipeWire"
+                else
+                    echo -e "  ${YELLOW}Warning: Virtual camera may not be visible to PipeWire apps${NC}"
+                    echo -e "  Try: ${BLUE}systemctl --user restart wireplumber${NC}"
+                fi
+            else
+                echo -e "  Virtual camera already registered with PipeWire"
+            fi
+        fi
+        if command -v udevadm &>/dev/null; then
+            sudo udevadm trigger --action=add /dev/video10 2>/dev/null || true
+        fi
     else
         echo -e "  ${YELLOW}Warning: Could not create virtual camera at /dev/video10${NC}"
     fi

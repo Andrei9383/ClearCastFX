@@ -78,6 +78,16 @@ setup_vcam() {
     if modinfo v4l2loopback &>/dev/null; then
         sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 || true
         echo -e "  Virtual camera created at /dev/video10"
+        if command -v wpctl &> /dev/null; then
+            if ! wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
+                echo -e "  Restarting WirePlumber to detect virtual camera..."
+                systemctl --user restart wireplumber.service 2>/dev/null || true
+                sleep 2
+            fi
+        fi
+        if command -v udevadm &>/dev/null; then
+            sudo udevadm trigger --action=add /dev/video10 2>/dev/null || true
+        fi
     else
         echo -e "  ${YELLOW}v4l2loopback not installed${NC}"
         echo -e "  Install with:"
@@ -122,6 +132,17 @@ fi
 # Ensure v4l2loopback is loaded
 if ! lsmod | grep -q v4l2loopback 2>/dev/null; then
     sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 2>/dev/null || true
+fi
+
+# Restart WirePlumber so PipeWire-aware apps (browsers on Fedora) see the device
+if [ -e /dev/video10 ] && command -v wpctl &> /dev/null; then
+    if ! wpctl status 2>/dev/null | grep -qi "blucast\|video10"; then
+        systemctl --user restart wireplumber.service 2>/dev/null || true
+        sleep 2
+    fi
+fi
+if [ -e /dev/video10 ] && command -v udevadm &>/dev/null; then
+    sudo udevadm trigger --action=add /dev/video10 2>/dev/null || true
 fi
 
 # Allow X11 connections from container
