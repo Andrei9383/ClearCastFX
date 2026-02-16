@@ -27,7 +27,12 @@ else
 fi
 
 # Ensure v4l2loopback is loaded
-if ! lsmod | grep -q v4l2loopback 2>/dev/null; then
+if [ ! -e /dev/video10 ]; then
+    if lsmod | grep -q v4l2loopback 2>/dev/null; then
+        echo "Reloading v4l2loopback with correct device number..."
+        sudo modprobe -r v4l2loopback 2>/dev/null || true
+        sleep 1
+    fi
     sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 2>/dev/null || true
 fi
 

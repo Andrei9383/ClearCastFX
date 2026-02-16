@@ -53,22 +53,34 @@ check_requirements() {
 install_v4l2loopback() {
     echo -e "${YELLOW}[2/5]${NC} Setting up virtual camera..."
     
-    if lsmod | grep -q v4l2loopback; then
-        echo -e "  v4l2loopback already loaded"
-        return
-    fi
-    
     if ! command -v modprobe &> /dev/null; then
         echo -e "  ${YELLOW}Skipping v4l2loopback (modprobe not available)${NC}"
         return
     fi
     
-    if modinfo v4l2loopback &>/dev/null; then
-        sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 || true
-        echo -e "  Virtual camera created at /dev/video10"
-    else
+    if ! modinfo v4l2loopback &>/dev/null; then
         echo -e "  ${YELLOW}v4l2loopback not installed${NC}"
         echo -e "  Install with: ${BLUE}sudo dnf install v4l2loopback${NC}"
+        return
+    fi
+    
+    if [ -e /dev/video10 ]; then
+        echo -e "  v4l2loopback already loaded at /dev/video10"
+        return
+    fi
+    
+    if lsmod | grep -q v4l2loopback; then
+        echo -e "  v4l2loopback loaded with wrong device number, reloading..."
+        sudo modprobe -r v4l2loopback || true
+        sleep 1
+    fi
+    
+    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 || true
+    
+    if [ -e /dev/video10 ]; then
+        echo -e "  Virtual camera created at /dev/video10"
+    else
+        echo -e "  ${YELLOW}Warning: Could not create virtual camera at /dev/video10${NC}"
     fi
 }
 
