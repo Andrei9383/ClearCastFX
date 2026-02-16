@@ -57,6 +57,8 @@ The following must be installed on your host system **before** installing BluCas
 - **[v4l2loopback](https://github.com/umlaeute/v4l2loopback)** - kernel module for the virtual camera device
   - Fedora: `sudo dnf install v4l2loopback`
   - Ubuntu: `sudo apt install v4l2loopback-dkms`
+- **(if you're using GNOME):** [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/) - required for the system tray icon
+  - Without this extension, the system tray icon will not appear and closing the window will not minimize to tray
 
 ## Quick Start
 
@@ -197,6 +199,12 @@ options v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive
 ### No camera detected
 - Ensure your webcam is connected: `ls /dev/video*`
 - Check camera permissions: `groups | grep video`
+
+### Virtual camera not visible in browsers (Fedora)
+On Fedora (and other PipeWire-based systems), browsers enumerate cameras through PipeWire's camera portal, not by scanning `/dev/video*` directly. If the virtual camera is not showing up:
+1. Restart WirePlumber: `systemctl --user restart wireplumber`
+2. Verify the device is registered: `wpctl status` (look for "BluCast" or "video10" under Video devices)
+3. If still not visible, try restarting PipeWire entirely: `systemctl --user restart pipewire pipewire-pulse wireplumber`
 
 ### GPU errors
 - Verify NVIDIA drivers: `nvidia-smi`
