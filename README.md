@@ -202,6 +202,11 @@ options v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive
 - Verify NVIDIA drivers: `nvidia-smi`
 - Check Container Toolkit: `podman run --rm --device nvidia.com/gpu=all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi`
 
+### Error setting up CDI
+- If you encounter an error such as: `Error: setting up CDI devices: unresolvable CDI devices nvidia.com/gpu=all`, that means the CDI spec hasn't been generated (yet). Try running:
+`sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml`
+
+
 ## License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
