@@ -20,8 +20,19 @@
 #include "nvVideoEffects.h"
 #include "opencv2/opencv.hpp"
 
-#define BAIL_IF_ERR(err) do { if (0 != (err)) { goto bail; } } while (0)
-#define BAIL_IF_NULL(x, err, code) do { if ((void *)(x) == NULL) { err = code; goto bail; } } while (0)
+#define BAIL_IF_ERR(err)                                                       \
+  do {                                                                         \
+    if (0 != (err)) {                                                          \
+      goto bail;                                                               \
+    }                                                                          \
+  } while (0)
+#define BAIL_IF_NULL(x, err, code)                                             \
+  do {                                                                         \
+    if ((void *)(x) == NULL) {                                                 \
+      err = code;                                                              \
+      goto bail;                                                               \
+    }                                                                          \
+  } while (0)
 
 const char *CMD_PIPE = "/tmp/blucast/blucast_cmd";
 const char *VCAM_DEVICE = "/dev/video10";
@@ -35,7 +46,7 @@ std::atomic<bool> g_vcamEnabled(true);
 std::atomic<int> g_vcamConsumers(0);
 std::atomic<bool> g_showPreview(false);
 std::atomic<bool> g_showOverlay(false);
-std::atomic<bool> g_embeddedPreview(true);  // Qt embedded preview
+std::atomic<bool> g_embeddedPreview(true); // Qt embedded preview
 std::mutex g_bgMutex;
 std::string g_bgFile;
 bool g_bgChanged = false;
@@ -66,12 +77,17 @@ public:
       : _eff(nullptr), _bgblurEff(nullptr), _artifactEff(nullptr),
         _stream(nullptr), _inited(false), _showFPS(true), _framePeriod(0.f),
         _batchOfStates(nullptr), _vcamFd(-1), _vcamWidth(0), _vcamHeight(0),
-        _artifactInited(false) {}
+        _artifactInited(false), _vcamStreaming(false) {}
 
   ~VideoFXServer() {
     destroyEffect();
-    if (_vcamFd >= 0)
+    if (_vcamFd >= 0) {
+      if (_vcamStreaming) {
+        int type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+        ioctl(_vcamFd, VIDIOC_STREAMOFF, &type);
+      }
       close(_vcamFd);
+    }
   }
 
   NvCV_Status init(const std::string &modelDir, int mode) {
@@ -79,7 +95,8 @@ public:
 
     vfxErr = NvVFX_CreateEffect(NVVFX_FX_GREEN_SCREEN, &_eff);
     if (NVCV_SUCCESS != vfxErr) {
-      std::cerr << "Error creating Green Screen effect: " << vfxErr << std::endl;
+      std::cerr << "Error creating Green Screen effect: " << vfxErr
+                << std::endl;
       return vfxErr;
     }
 
@@ -140,7 +157,8 @@ public:
 
     vfxErr = NvVFX_CreateEffect(NVVFX_FX_ARTIFACT_REDUCTION, &_artifactEff);
     if (NVCV_SUCCESS != vfxErr) {
-      std::cerr << "Warning: Could not create artifact reduction effect" << std::endl;
+      std::cerr << "Warning: Could not create artifact reduction effect"
+                << std::endl;
       _artifactEff = nullptr;
     } else {
       NvVFX_SetCudaStream(_artifactEff, NVVFX_CUDA_STREAM, _stream);
@@ -167,10 +185,22 @@ public:
       _batchOfStates = nullptr;
     }
 
-    if (_eff) { NvVFX_DestroyEffect(_eff); _eff = nullptr; }
-    if (_bgblurEff) { NvVFX_DestroyEffect(_bgblurEff); _bgblurEff = nullptr; }
-    if (_artifactEff) { NvVFX_DestroyEffect(_artifactEff); _artifactEff = nullptr; }
-    if (_stream) { NvVFX_CudaStreamDestroy(_stream); _stream = nullptr; }
+    if (_eff) {
+      NvVFX_DestroyEffect(_eff);
+      _eff = nullptr;
+    }
+    if (_bgblurEff) {
+      NvVFX_DestroyEffect(_bgblurEff);
+      _bgblurEff = nullptr;
+    }
+    if (_artifactEff) {
+      NvVFX_DestroyEffect(_artifactEff);
+      _artifactEff = nullptr;
+    }
+    if (_stream) {
+      NvVFX_CudaStreamDestroy(_stream);
+      _stream = nullptr;
+    }
 
     NvCVImage_Dealloc(&_srcGPU);
     NvCVImage_Dealloc(&_dstGPU);
@@ -181,16 +211,21 @@ public:
 
   bool initVirtualCamera(int width, int height) {
     if (_vcamFd >= 0 && (_vcamWidth != width || _vcamHeight != height)) {
+      // Stop streaming before closing
+      int type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+      ioctl(_vcamFd, VIDIOC_STREAMOFF, &type);
       close(_vcamFd);
       _vcamFd = -1;
+      _vcamStreaming = false;
     }
 
     if (_vcamFd >= 0)
       return true;
 
-    _vcamFd = open(VCAM_DEVICE, O_WRONLY);
+    _vcamFd = open(VCAM_DEVICE, O_RDWR);
     if (_vcamFd < 0) {
-      std::cerr << "Warning: Could not open virtual camera " << VCAM_DEVICE << std::endl;
+      std::cerr << "Warning: Could not open virtual camera " << VCAM_DEVICE
+                << std::endl;
       return false;
     }
 
@@ -199,8 +234,11 @@ public:
     fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
     fmt.fmt.pix.width = width;
     fmt.fmt.pix.height = height;
-    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_BGR24;
-    fmt.fmt.pix.sizeimage = width * height * 3;
+    // Use YUV420 (YU12) format for browser/PipeWire compatibility.
+    // PipeWire's camera portal filters out BGR24 as non-standard,
+    // so browsers on Fedora/GNOME won't see the virtual camera.
+    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV420;
+    fmt.fmt.pix.sizeimage = width * height * 3 / 2;
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
     if (ioctl(_vcamFd, VIDIOC_S_FMT, &fmt) < 0) {
@@ -210,19 +248,22 @@ public:
 
     // Set frame rate on the virtual camera device
     int fps = g_outputFps.load();
-    if (fps <= 0) fps = 30;
+    if (fps <= 0)
+      fps = 30;
     struct v4l2_streamparm parm;
     memset(&parm, 0, sizeof(parm));
     parm.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
     parm.parm.output.timeperframe.numerator = 1;
     parm.parm.output.timeperframe.denominator = fps;
     if (ioctl(_vcamFd, VIDIOC_S_PARM, &parm) < 0) {
-      std::cerr << "Warning: Could not set virtual camera frame rate" << std::endl;
+      std::cerr << "Warning: Could not set virtual camera frame rate"
+                << std::endl;
     }
 
     _vcamWidth = width;
     _vcamHeight = height;
-    std::cout << "Virtual camera: " << VCAM_DEVICE << " @ " << width << "x" << height << " " << fps << "fps" << std::endl;
+    std::cout << "Virtual camera: " << VCAM_DEVICE << " @ " << width << "x"
+              << height << " " << fps << "fps (YUV420)" << std::endl;
     return true;
   }
 
@@ -243,8 +284,8 @@ public:
       fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
       fmt.fmt.pix.width = bgr.cols;
       fmt.fmt.pix.height = bgr.rows;
-      fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_BGR24;
-      fmt.fmt.pix.sizeimage = bgr.cols * bgr.rows * 3;
+      fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV420;
+      fmt.fmt.pix.sizeimage = bgr.cols * bgr.rows * 3 / 2;
       fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
       if (ioctl(_vcamFd, VIDIOC_S_FMT, &fmt) >= 0) {
@@ -253,7 +294,8 @@ public:
 
         // Also update frame rate
         int fps = g_outputFps.load();
-        if (fps <= 0) fps = 30;
+        if (fps <= 0)
+          fps = 30;
         struct v4l2_streamparm parm;
         memset(&parm, 0, sizeof(parm));
         parm.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -263,40 +305,46 @@ public:
       }
     }
 
-    write(_vcamFd, bgr.data, bgr.total() * bgr.elemSize());
+    // Convert BGR to YUV420 (I420) for PipeWire/browser compatibility
+    cv::Mat yuv;
+    cv::cvtColor(bgr, yuv, cv::COLOR_BGR2YUV_I420);
+    write(_vcamFd, yuv.data, yuv.total() * yuv.elemSize());
   }
 
   void writeIdleFrame() {
     if (_vcamFd < 0)
       return;
 
-    static cv::Mat idleFrame;
-    if (idleFrame.empty()) {
-      idleFrame = cv::Mat::zeros(720, 1280, CV_8UC3);
+    static cv::Mat idleFrameYuv;
+    if (idleFrameYuv.empty()) {
+      cv::Mat idleFrame = cv::Mat::zeros(720, 1280, CV_8UC3);
       cv::putText(idleFrame, "Camera Off", cv::Point(520, 360),
                   cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(100, 100, 100), 2);
+      cv::cvtColor(idleFrame, idleFrameYuv, cv::COLOR_BGR2YUV_I420);
     }
 
-    write(_vcamFd, idleFrame.data, idleFrame.total() * idleFrame.elemSize());
+    write(_vcamFd, idleFrameYuv.data,
+          idleFrameYuv.total() * idleFrameYuv.elemSize());
   }
 
   void writePreviewFrame(const cv::Mat &frame) {
     static int previewFd = -1;
     static int lastWidth = 0;
     static int lastHeight = 0;
-    
+
     // Convert BGR to RGB for Qt
     cv::Mat rgb;
     cv::cvtColor(frame, rgb, cv::COLOR_BGR2RGB);
-    
+
     // Reopen file if dimensions changed or first time
     if (previewFd < 0 || rgb.cols != lastWidth || rgb.rows != lastHeight) {
-      if (previewFd >= 0) close(previewFd);
+      if (previewFd >= 0)
+        close(previewFd);
       previewFd = open(PREVIEW_FRAME, O_WRONLY | O_CREAT | O_TRUNC, 0666);
       lastWidth = rgb.cols;
       lastHeight = rgb.rows;
     }
-    
+
     if (previewFd >= 0) {
       lseek(previewFd, 0, SEEK_SET);
       write(previewFd, rgb.data, rgb.total() * rgb.elemSize());
@@ -329,7 +377,8 @@ public:
       if (vcamEnabled && _vcamFd < 0)
         initVirtualCamera(1280, 720);
 
-      bool needCamera = previewWanted || embeddedPreview || (vcamEnabled && consumers > 0);
+      bool needCamera =
+          previewWanted || embeddedPreview || (vcamEnabled && consumers > 0);
 
       if (needCamera != lastNeedCamera) {
         std::cout << (needCamera ? "Capture active" : "Idle") << std::endl;
@@ -373,9 +422,11 @@ public:
           bool found = false;
           for (int idx = 0; idx <= 9; idx++) {
             std::string devPath = "/dev/video" + std::to_string(idx);
-            if (devPath == VCAM_DEVICE) continue;
+            if (devPath == VCAM_DEVICE)
+              continue;
             struct stat st;
-            if (stat(devPath.c_str(), &st) != 0) continue;
+            if (stat(devPath.c_str(), &st) != 0)
+              continue;
             cap.open(devPath, cv::CAP_V4L2);
             if (cap.isOpened()) {
               std::cout << "Auto-detected camera: " << devPath << std::endl;
@@ -390,9 +441,24 @@ public:
           }
         }
         if (!cap.isOpened()) {
-          std::cerr << "Error: Cannot open camera " << (currentDevice.empty() ? std::to_string(cameraId) : currentDevice) << std::endl;
+          std::cerr << "Error: Cannot open camera "
+                    << (currentDevice.empty() ? std::to_string(cameraId)
+                                              : currentDevice)
+                    << std::endl;
           std::this_thread::sleep_for(std::chrono::milliseconds(500));
           continue;
+        }
+
+        // Try to set device priority to BACKGROUND so other apps can share it.
+        // V4L2 supports priority levels: BACKGROUND(1), INTERACTIVE(2),
+        // RECORD(3).
+        if (!currentDevice.empty()) {
+          int rawFd = open(currentDevice.c_str(), O_RDWR | O_NONBLOCK);
+          if (rawFd >= 0) {
+            enum v4l2_priority prio = V4L2_PRIORITY_BACKGROUND;
+            ioctl(rawFd, VIDIOC_S_PRIORITY, &prio);
+            close(rawFd);
+          }
         }
 
         int reqWidth = g_cameraWidth.load();
@@ -411,24 +477,34 @@ public:
 
         if (!buffersAllocated) {
           NvCV_Status vfxErr;
-          vfxErr = NvCVImage_Alloc(&_srcGPU, width, height, NVCV_BGR, NVCV_U8, NVCV_CHUNKY, NVCV_GPU, 1);
-          if (vfxErr != NVCV_SUCCESS) return 1;
-          vfxErr = NvCVImage_Alloc(&_dstGPU, width, height, NVCV_A, NVCV_U8, NVCV_CHUNKY, NVCV_GPU, 1);
-          if (vfxErr != NVCV_SUCCESS) return 1;
-          vfxErr = NvCVImage_Alloc(&_blurGPU, width, height, NVCV_BGR, NVCV_U8, NVCV_CHUNKY, NVCV_GPU, 1);
-          if (vfxErr != NVCV_SUCCESS) return 1;
+          vfxErr = NvCVImage_Alloc(&_srcGPU, width, height, NVCV_BGR, NVCV_U8,
+                                   NVCV_CHUNKY, NVCV_GPU, 1);
+          if (vfxErr != NVCV_SUCCESS)
+            return 1;
+          vfxErr = NvCVImage_Alloc(&_dstGPU, width, height, NVCV_A, NVCV_U8,
+                                   NVCV_CHUNKY, NVCV_GPU, 1);
+          if (vfxErr != NVCV_SUCCESS)
+            return 1;
+          vfxErr = NvCVImage_Alloc(&_blurGPU, width, height, NVCV_BGR, NVCV_U8,
+                                   NVCV_CHUNKY, NVCV_GPU, 1);
+          if (vfxErr != NVCV_SUCCESS)
+            return 1;
 
-          vfxErr = NvCVImage_Alloc(&_artifactInGPU, width, height, NVCV_BGR, NVCV_F32, NVCV_PLANAR, NVCV_GPU, 1);
+          vfxErr = NvCVImage_Alloc(&_artifactInGPU, width, height, NVCV_BGR,
+                                   NVCV_F32, NVCV_PLANAR, NVCV_GPU, 1);
           if (vfxErr == NVCV_SUCCESS) {
-            vfxErr = NvCVImage_Alloc(&_artifactGPU, width, height, NVCV_BGR, NVCV_F32, NVCV_PLANAR, NVCV_GPU, 1);
+            vfxErr = NvCVImage_Alloc(&_artifactGPU, width, height, NVCV_BGR,
+                                     NVCV_F32, NVCV_PLANAR, NVCV_GPU, 1);
           }
 
           unsigned modelBatch;
           NvVFX_GetU32(_eff, NVVFX_MODEL_BATCH, &modelBatch);
-          _batchOfStates = (NvVFX_StateObjectHandle *)malloc(sizeof(NvVFX_StateObjectHandle) * modelBatch);
+          _batchOfStates = (NvVFX_StateObjectHandle *)malloc(
+              sizeof(NvVFX_StateObjectHandle) * modelBatch);
           _batchOfStates[0] = _stateArray[0];
 
-          if (_artifactEff && !_artifactInited && _artifactInGPU.pixels && _artifactGPU.pixels) {
+          if (_artifactEff && !_artifactInited && _artifactInGPU.pixels &&
+              _artifactGPU.pixels) {
             NvVFX_SetImage(_artifactEff, NVVFX_INPUT_IMAGE, &_artifactInGPU);
             NvVFX_SetImage(_artifactEff, NVVFX_OUTPUT_IMAGE, &_artifactGPU);
             vfxErr = NvVFX_Load(_artifactEff);
@@ -506,10 +582,13 @@ public:
         if (_showFPS)
           drawFPS(display);
 
-        const char *modeNames[] = {"Matte", "Light", "Green", "White", "Original", "Background", "Blur", "Denoise"};
+        const char *modeNames[] = {"Matte", "Light",    "Green",
+                                   "White", "Original", "Background",
+                                   "Blur",  "Denoise"};
         if (mode >= 0 && mode < 8) {
           cv::putText(display, modeNames[mode], cv::Point(10, 60),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 0), 2);
+                      cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 0),
+                      2);
         }
 
         if (g_vcamEnabled && _vcamFd >= 0) {
@@ -530,7 +609,7 @@ public:
       }
 
       writeToVirtualCamera(result);
-      
+
       // Write frame for Qt preview
       writePreviewFrame(result);
 
@@ -551,7 +630,8 @@ public:
   }
 
 private:
-  void processFrame(const cv::Mat &src, cv::Mat &result, cv::Mat &matte, int mode) {
+  void processFrame(const cv::Mat &src, cv::Mat &result, cv::Mat &matte,
+                    int mode) {
     NvCV_Status vfxErr;
 
     matte = cv::Mat::zeros(src.size(), CV_8UC1);
@@ -588,12 +668,14 @@ private:
 
     case compGreen: {
       const unsigned char bgColor[3] = {0, 255, 0};
-      NvCVImage_CompositeOverConstant(&srcWrapper, &dstWrapper, bgColor, &resultWrapper, _stream);
+      NvCVImage_CompositeOverConstant(&srcWrapper, &dstWrapper, bgColor,
+                                      &resultWrapper, _stream);
     } break;
 
     case compWhite: {
       const unsigned char bgColor[3] = {255, 255, 255};
-      NvCVImage_CompositeOverConstant(&srcWrapper, &dstWrapper, bgColor, &resultWrapper, _stream);
+      NvCVImage_CompositeOverConstant(&srcWrapper, &dstWrapper, bgColor,
+                                      &resultWrapper, _stream);
     } break;
 
     case compLight:
@@ -601,10 +683,10 @@ private:
         for (int x = 0; x < src.cols; x++) {
           float alpha = matte.at<uchar>(y, x) / 255.0f;
           cv::Vec3b srcPix = src.at<cv::Vec3b>(y, x);
-          result.at<cv::Vec3b>(y, x) = cv::Vec3b(
-              srcPix[0] * (0.5f + 0.5f * alpha),
-              srcPix[1] * (0.5f + 0.5f * alpha),
-              srcPix[2] * (0.5f + 0.5f * alpha));
+          result.at<cv::Vec3b>(y, x) =
+              cv::Vec3b(srcPix[0] * (0.5f + 0.5f * alpha),
+                        srcPix[1] * (0.5f + 0.5f * alpha),
+                        srcPix[2] * (0.5f + 0.5f * alpha));
         }
       }
       break;
@@ -613,12 +695,15 @@ private:
       if (!_bgImg.empty()) {
         NvCVImage bgWrapper;
         NVWrapperForCVMat(&_bgImg, &bgWrapper);
-        NvCVImage_Composite(&srcWrapper, &bgWrapper, &dstWrapper, &resultWrapper, _stream);
+        NvCVImage_Composite(&srcWrapper, &bgWrapper, &dstWrapper,
+                            &resultWrapper, _stream);
       } else {
         const unsigned char bgColor[3] = {0, 200, 0};
-        NvCVImage_CompositeOverConstant(&srcWrapper, &dstWrapper, bgColor, &resultWrapper, _stream);
+        NvCVImage_CompositeOverConstant(&srcWrapper, &dstWrapper, bgColor,
+                                        &resultWrapper, _stream);
         cv::putText(result, "Select background in control panel",
-                    cv::Point(20, result.rows / 2), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 255, 255), 2);
+                    cv::Point(20, result.rows / 2), cv::FONT_HERSHEY_SIMPLEX,
+                    0.8, cv::Scalar(255, 255, 255), 2);
       }
       break;
 
@@ -642,7 +727,9 @@ private:
         for (int y = 0; y < src.rows; y++) {
           for (int x = 0; x < src.cols; x++) {
             float alpha = matte.at<uchar>(y, x) / 255.0f;
-            result.at<cv::Vec3b>(y, x) = src.at<cv::Vec3b>(y, x) * alpha + blurred.at<cv::Vec3b>(y, x) * (1.0f - alpha);
+            result.at<cv::Vec3b>(y, x) =
+                src.at<cv::Vec3b>(y, x) * alpha +
+                blurred.at<cv::Vec3b>(y, x) * (1.0f - alpha);
           }
         }
       }
@@ -650,14 +737,16 @@ private:
 
     case compDenoise:
       if (_artifactEff && _artifactInited) {
-        vfxErr = NvCVImage_Transfer(&srcWrapper, &_artifactInGPU, 1.0f / 255.0f, _stream, NULL);
+        vfxErr = NvCVImage_Transfer(&srcWrapper, &_artifactInGPU, 1.0f / 255.0f,
+                                    _stream, NULL);
         if (vfxErr != NVCV_SUCCESS) {
           src.copyTo(result);
           break;
         }
         vfxErr = NvVFX_Run(_artifactEff, 0);
         if (vfxErr == NVCV_SUCCESS) {
-          vfxErr = NvCVImage_Transfer(&_artifactGPU, &resultWrapper, 255.0f, _stream, NULL);
+          vfxErr = NvCVImage_Transfer(&_artifactGPU, &resultWrapper, 255.0f,
+                                      _stream, NULL);
           if (vfxErr != NVCV_SUCCESS)
             src.copyTo(result);
         } else {
@@ -666,7 +755,8 @@ private:
       } else {
         src.copyTo(result);
         cv::putText(result, "Denoise not available",
-                    cv::Point(20, result.rows / 2), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 2);
+                    cv::Point(20, result.rows / 2), cv::FONT_HERSHEY_SIMPLEX,
+                    0.8, cv::Scalar(0, 0, 255), 2);
       }
       break;
     }
@@ -685,7 +775,8 @@ private:
 
       char buf[32];
       snprintf(buf, sizeof(buf), "%.1f FPS", 1.0f / _framePeriod);
-      cv::putText(img, buf, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+      cv::putText(img, buf, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1,
+                  cv::Scalar(0, 255, 0), 2);
     }
     _lastTime = now;
   }
@@ -714,6 +805,7 @@ private:
   int _vcamFd;
   int _vcamWidth;
   int _vcamHeight;
+  bool _vcamStreaming;
 };
 
 void commandListener() {
@@ -731,15 +823,20 @@ void commandListener() {
     struct pollfd pfd = {fd, POLLIN, 0};
     while (g_running) {
       int ret = poll(&pfd, 1, 500);
-      if (ret < 0) break;
-      if (ret == 0) continue;
-      if (pfd.revents & (POLLHUP | POLLERR)) break;
+      if (ret < 0)
+        break;
+      if (ret == 0)
+        continue;
+      if (pfd.revents & (POLLHUP | POLLERR))
+        break;
       if (pfd.revents & POLLIN) {
         char buf[512];
         ssize_t n = read(fd, buf, sizeof(buf) - 1);
-        if (n <= 0) break;
+        if (n <= 0)
+          break;
         buf[n] = '\0';
-        if (buf[n - 1] == '\n') buf[n - 1] = '\0';
+        if (buf[n - 1] == '\n')
+          buf[n - 1] = '\0';
 
         std::string cmd(buf);
 
@@ -747,17 +844,27 @@ void commandListener() {
           g_running = false;
         } else if (cmd.rfind("VCAM_CONSUMERS:", 0) == 0) {
           int consumers = 0;
-          try { consumers = std::stoi(cmd.substr(15)); } catch (...) {}
-          if (consumers < 0) consumers = 0;
+          try {
+            consumers = std::stoi(cmd.substr(15));
+          } catch (...) {
+          }
+          if (consumers < 0)
+            consumers = 0;
           int prev = g_vcamConsumers.exchange(consumers);
-          if (prev != consumers) std::cout << "Vcam consumers: " << consumers << std::endl;
+          if (prev != consumers)
+            std::cout << "Vcam consumers: " << consumers << std::endl;
         } else if (cmd.rfind("VCAM_OPENERS:", 0) == 0) {
           int openers = 0;
-          try { openers = std::stoi(cmd.substr(13)); } catch (...) {}
+          try {
+            openers = std::stoi(cmd.substr(13));
+          } catch (...) {
+          }
           int consumers = openers - 1;
-          if (consumers < 0) consumers = 0;
+          if (consumers < 0)
+            consumers = 0;
           int prev = g_vcamConsumers.exchange(consumers);
-          if (prev != consumers) std::cout << "Vcam consumers: " << consumers << std::endl;
+          if (prev != consumers)
+            std::cout << "Vcam consumers: " << consumers << std::endl;
         } else if (cmd.substr(0, 5) == "MODE:") {
           int newMode = std::stoi(cmd.substr(5));
           g_compMode.store(newMode);
@@ -807,7 +914,8 @@ void commandListener() {
                 g_cameraHeight.store(h);
                 g_cameraSettingsChanged.store(true);
               }
-            } catch (...) {}
+            } catch (...) {
+            }
           }
         } else if (cmd.rfind("FPS:", 0) == 0) {
           try {
@@ -817,13 +925,15 @@ void commandListener() {
               g_outputFps.store(fps);
               g_cameraSettingsChanged.store(true);
             }
-          } catch (...) {}
+          } catch (...) {
+          }
         } else if (cmd.rfind("OUTPUT_FPS:", 0) == 0) {
           try {
             int fps = std::stoi(cmd.substr(11));
             if (fps > 0 && fps <= 120)
               g_outputFps.store(fps);
-          } catch (...) {}
+          } catch (...) {
+          }
         }
       }
     }
