@@ -57,6 +57,8 @@ The following must be installed on your host system **before** installing BluCas
 - **[v4l2loopback](https://github.com/umlaeute/v4l2loopback)** - kernel module for the virtual camera device
   - Fedora: `sudo dnf install v4l2loopback`
   - Ubuntu: `sudo apt install v4l2loopback-dkms`
+- **(if you're using GNOME):** [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/) - required for the system tray icon
+  - Without this extension, the system tray icon will not appear and closing the window will not minimize to tray
 
 ## Quick Start
 
@@ -201,6 +203,11 @@ options v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive
 ### GPU errors
 - Verify NVIDIA drivers: `nvidia-smi`
 - Check Container Toolkit: `podman run --rm --device nvidia.com/gpu=all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi`
+
+### Error setting up CDI
+- If you encounter an error such as: `Error: setting up CDI devices: unresolvable CDI devices nvidia.com/gpu=all`, that means the CDI spec hasn't been generated (yet). Try running:
+`sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml`
+
 
 ## License
 
