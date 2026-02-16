@@ -222,7 +222,7 @@ public:
     if (_vcamFd >= 0)
       return true;
 
-    _vcamFd = open(VCAM_DEVICE, O_RDWR);
+    _vcamFd = open(VCAM_DEVICE, O_WRONLY);
     if (_vcamFd < 0) {
       std::cerr << "Warning: Could not open virtual camera " << VCAM_DEVICE
                 << std::endl;
@@ -234,9 +234,6 @@ public:
     fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
     fmt.fmt.pix.width = width;
     fmt.fmt.pix.height = height;
-    // Use YUV420 (YU12) format for browser/PipeWire compatibility.
-    // PipeWire's camera portal filters out BGR24 as non-standard,
-    // so browsers on Fedora/GNOME won't see the virtual camera.
     fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUV420;
     fmt.fmt.pix.sizeimage = width * height * 3 / 2;
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
@@ -305,7 +302,6 @@ public:
       }
     }
 
-    // Convert BGR to YUV420 (I420) for PipeWire/browser compatibility
     cv::Mat yuv;
     cv::cvtColor(bgr, yuv, cv::COLOR_BGR2YUV_I420);
     write(_vcamFd, yuv.data, yuv.total() * yuv.elemSize());
