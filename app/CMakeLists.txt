@@ -4,22 +4,16 @@ project(BluCast LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find OpenCV
 find_package(OpenCV REQUIRED)
-
-# Find CUDA
 find_package(CUDA REQUIRED)
 
-# VideoFX SDK paths
-set(VFX_SDK "/usr/local/VideoFX")
+# SDK paths
+set(VFX_SDK     "/usr/local/VideoFX")
 set(VFX_INCLUDE "${VFX_SDK}/include")
-set(VFX_LIB "${VFX_SDK}/lib")
+set(VFX_LIB     "${VFX_SDK}/lib")
 set(VFX_SAMPLES "${VFX_SDK}/share/samples")
+set(TRT_ROOT    "/usr/local/TensorRT-8.5.1.7")
 
-# TensorRT paths  
-set(TRT_ROOT "/usr/local/TensorRT-8.5.1.7")
-
-# Include directories
 include_directories(
     ${VFX_INCLUDE}
     ${VFX_SAMPLES}/utils
@@ -28,32 +22,19 @@ include_directories(
     ${CUDA_INCLUDE_DIRS}
 )
 
-# Link directories
-link_directories(
-    ${VFX_LIB}
-    ${TRT_ROOT}/lib
-)
+link_directories(${VFX_LIB} ${TRT_ROOT}/lib)
 
-# Source files
-set(SOURCE_FILES
-    server.cpp
-)
-
-# Build the server
-add_executable(blucast_server ${SOURCE_FILES})
+add_executable(blucast_server server.cpp)
 
 target_link_libraries(blucast_server
     ${OpenCV_LIBS}
     ${VFX_LIB}/libVideoFX.so
     ${VFX_LIB}/libNVCVImage.so
     ${CUDA_LIBRARIES}
-    cuda
-    pthread
-    dl
+    cuda pthread dl
 )
 
-# Set rpath for runtime library loading
 set_target_properties(blucast_server PROPERTIES
-    BUILD_RPATH "${VFX_LIB};${TRT_ROOT}/lib"
+    BUILD_RPATH  "${VFX_LIB};${TRT_ROOT}/lib"
     INSTALL_RPATH "${VFX_LIB};${TRT_ROOT}/lib"
 )

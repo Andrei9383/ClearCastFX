@@ -1,8 +1,6 @@
 #!/bin/bash
-# BluCast Remote Installation Script
-# Downloads and sets up BluCast from GitHub Container Registry
 
-set -e
+set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,237 +11,275 @@ NC='\033[0m'
 GHCR_IMAGE="ghcr.io/andrei9383/blucast:latest"
 INSTALL_DIR="$HOME/.local/share/blucast"
 BIN_DIR="$HOME/.local/bin"
+VCAM_NR=10
+VCAM_DEVICE="/dev/video${VCAM_NR}"
+VCAM_LABEL="BluCast Virtual Camera"
 
-echo -e "${BLUE}"
-echo "======================================"
-echo "     BluCast Quick Installer"
-echo "    AI-Powered Video Effects"
-echo "======================================"
-echo -e "${NC}"
+log()  { echo -e "  ${GREEN}✓${NC} $*"; }
+warn() { echo -e "  ${YELLOW}!${NC} $*"; }
+die()  { echo -e "  ${RED}✗${NC} $*"; exit 1; }
 
-# Check requirements
-check_requirements() {
-    echo -e "${YELLOW}[1/4]${NC} Checking requirements..."
-    
-    # Check container runtime
-    if command -v podman &> /dev/null; then
-        CONTAINER_CMD="podman"
-        echo -e "  Found podman"
-    elif command -v docker &> /dev/null; then
-        CONTAINER_CMD="docker"
-        echo -e "  Found docker"
-    else
-        echo -e "  ${RED}Error: podman or docker is required${NC}"
-        echo -e "  Install with:"
-        echo -e "    Fedora: ${BLUE}sudo dnf install podman${NC}"
-        echo -e "    Ubuntu: ${BLUE}sudo apt install podman${NC}"
-        exit 1
-    fi
-    
-    # Check NVIDIA driver
-    if ! command -v nvidia-smi &> /dev/null; then
-        echo -e "  ${RED}Error: NVIDIA driver not found${NC}"
-        echo -e "  Please install NVIDIA drivers first"
-        exit 1
-    fi
-    
-    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
-    echo -e "  NVIDIA GPU detected: ${GREEN}${GPU_NAME}${NC}"
-    
-    # Check NVIDIA Container Toolkit
-    if ! $CONTAINER_CMD run --rm --device nvidia.com/gpu=all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi &>/dev/null; then
-        echo -e "  ${YELLOW}Warning: NVIDIA Container Toolkit may not be configured${NC}"
-        echo -e "  Install with:"
-        echo -e "    Fedora: ${BLUE}sudo dnf install nvidia-container-toolkit${NC}"
-        echo -e "    Ubuntu: See https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
-    else
-        echo -e "  NVIDIA Container Toolkit working"
-    fi
-}
+echo ""
+echo -e "${BLUE}══════════════════════════════════════${NC}"
+echo -e "${BLUE}     BluCast Quick Installer${NC}"
+echo -e "${BLUE}══════════════════════════════════════${NC}"
+echo ""
 
-# Setup v4l2loopback for virtual camera
-setup_vcam() {
-    echo -e "${YELLOW}[2/4]${NC} Setting up virtual camera..."
+echo -e "${BLUE}[1/5]${NC} Checking prerequisites..."
 
-    refresh_camera_portal() {
-        local restarted=false
-        for svc in wireplumber.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service xdg-desktop-portal-wlr.service; do
-            if systemctl --user list-unit-files "$svc" >/dev/null 2>&1; then
-                systemctl --user restart "$svc" 2>/dev/null || true
-                restarted=true
-            fi
-        done
-        if [ "$restarted" = true ]; then
-            sleep 2
-        fi
-    }
-    
-    if ! command -v modprobe &> /dev/null; then
-        echo -e "  ${YELLOW}Skipping v4l2loopback (modprobe not available)${NC}"
-        return
-    fi
-    
-    if modinfo v4l2loopback &>/dev/null; then
-        if [ -e /dev/video10 ]; then
-            echo -e "  v4l2loopback already loaded at /dev/video10"
-            sudo chmod 666 /dev/video10 2>/dev/null || true
-        else
-            if lsmod | grep -q v4l2loopback 2>/dev/null; then
-                echo -e "  v4l2loopback loaded with wrong device number, reloading..."
-                sudo modprobe -r v4l2loopback 2>/dev/null || true
-                sleep 1
-            fi
-            sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 max_buffers=2 max_openers=10 || true
-            sleep 1
-        fi
-
-        # Persist v4l2loopback options so the module loads correctly across reboots
-        MODPROBE_CONF="/etc/modprobe.d/v4l2loopback.conf"
-        MODPROBE_LINE='options v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 max_buffers=2 max_openers=10'
-        if [ ! -f "$MODPROBE_CONF" ] || ! grep -q 'video_nr=10' "$MODPROBE_CONF" 2>/dev/null; then
-            echo "$MODPROBE_LINE" | sudo tee "$MODPROBE_CONF" >/dev/null 2>&1 || true
-            echo -e "  Created ${BLUE}$MODPROBE_CONF${NC} for persistence"
-        fi
-
-        if [ -e /dev/video10 ]; then
-            sudo chmod 666 /dev/video10 2>/dev/null || true
-            echo -e "  Virtual camera created at /dev/video10"
-        else
-            echo -e "  ${YELLOW}Warning: Could not create virtual camera at /dev/video10${NC}"
-        fi
-        # Install udev rule to force capture caps (omg firefox)
-        UDEV_RULE='SUBSYSTEM=="video4linux", KERNEL=="video10", ENV{ID_V4L_PRODUCT}="BluCast Camera", ENV{ID_V4L_CAPABILITIES}=":capture:"'
-        UDEV_RULE_FILE="/etc/udev/rules.d/83-blucast-vcam.rules"
-        if [ ! -f "$UDEV_RULE_FILE" ] || ! grep -q "KERNEL==\"video10\"" "$UDEV_RULE_FILE" 2>/dev/null; then
-            echo "$UDEV_RULE" | sudo tee "$UDEV_RULE_FILE" >/dev/null 2>&1 || true
-            sudo udevadm control --reload-rules 2>/dev/null || true
-        fi
-        if command -v udevadm &>/dev/null; then
-            sudo udevadm trigger --action=change /dev/video10 2>/dev/null || true
-            sleep 1
-        fi
-        if command -v wpctl &> /dev/null; then
-            echo -e "  Registering virtual camera with PipeWire..."
-            refresh_camera_portal
-        fi
-    else
-        echo -e "  ${YELLOW}v4l2loopback not installed${NC}"
-        echo -e "  Install with:"
-        echo -e "    Fedora: ${BLUE}sudo dnf install v4l2loopback${NC}"
-        echo -e "    Ubuntu: ${BLUE}sudo apt install v4l2loopback-dkms${NC}"
-    fi
-}
-
-# Pull container from GHCR
-pull_container() {
-    echo -e "${YELLOW}[3/4]${NC} Pulling BluCast container..."
-    echo -e "  This may take a few minutes on first install..."
-    
-    if $CONTAINER_CMD pull "$GHCR_IMAGE"; then
-        echo -e "  Container pulled successfully"
-    else
-        echo -e "  ${RED}Failed to pull container${NC}"
-        exit 1
-    fi
-}
-
-# Create launcher scripts
-create_launcher() {
-    echo -e "${YELLOW}[4/4]${NC} Creating launcher..."
-    
-    mkdir -p "$INSTALL_DIR" "$BIN_DIR"
-    
-    # Create run script
-    cat > "$INSTALL_DIR/run.sh" << 'RUNSCRIPT'
-#!/bin/bash
-# BluCast Launcher
-
-GHCR_IMAGE="ghcr.io/andrei9383/blucast:latest"
-
-# Detect container runtime
-if command -v podman &> /dev/null; then
+if command -v podman &>/dev/null; then
     CONTAINER_CMD="podman"
-else
+elif command -v docker &>/dev/null; then
     CONTAINER_CMD="docker"
+else
+    die "Podman or Docker required.\n        Fedora:  sudo dnf install podman\n        Ubuntu:  sudo apt install podman"
+fi
+log "Container runtime: $CONTAINER_CMD"
+
+command -v nvidia-smi &>/dev/null || die "NVIDIA driver not found. Install NVIDIA drivers first."
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+log "GPU: $GPU_NAME"
+
+if $CONTAINER_CMD run --rm --device nvidia.com/gpu=all \
+    nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi &>/dev/null 2>&1; then
+    log "NVIDIA Container Toolkit: working"
+else
+    warn "NVIDIA Container Toolkit may need configuration"
+    warn "See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
 fi
 
-# Ensure v4l2loopback is loaded
-if ! lsmod | grep -q v4l2loopback 2>/dev/null; then
-    sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="BluCast Camera" exclusive_caps=1 2>/dev/null || true
-fi
+echo -e "${BLUE}[2/5]${NC} Setting up virtual camera..."
 
-# Install udev rule and restart WirePlumber for Firefox Camera portal
-UDEV_RULE='SUBSYSTEM=="video4linux", KERNEL=="video10", ENV{ID_V4L_PRODUCT}="BluCast Camera", ENV{ID_V4L_CAPABILITIES}=":capture:"'
-UDEV_RULE_FILE="/etc/udev/rules.d/83-blucast-vcam.rules"
-if [ -e /dev/video10 ]; then
-    if [ ! -f "$UDEV_RULE_FILE" ] || ! grep -q "KERNEL==\"video10\"" "$UDEV_RULE_FILE" 2>/dev/null; then
-        echo "$UDEV_RULE" | sudo tee "$UDEV_RULE_FILE" >/dev/null 2>&1 || true
-        sudo udevadm control --reload-rules 2>/dev/null || true
-    fi
-    if command -v udevadm &>/dev/null; then
-        sudo udevadm trigger --action=change /dev/video10 2>/dev/null || true
-        sleep 1
-    fi
-    if command -v wpctl &> /dev/null; then
-        for svc in wireplumber.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service xdg-desktop-portal-wlr.service; do
-            if systemctl --user list-unit-files "$svc" >/dev/null 2>&1; then
-                systemctl --user restart "$svc" 2>/dev/null || true
-            fi
-        done
-        sleep 2
+if ! modinfo v4l2loopback &>/dev/null 2>&1; then
+    echo "  Installing v4l2loopback..."
+    if command -v dnf &>/dev/null; then
+        sudo dnf install -y v4l2loopback kmod-v4l2loopback 2>/dev/null \
+            || sudo dnf install -y v4l2loopback 2>/dev/null \
+            || die "Failed to install v4l2loopback. Try: sudo dnf install v4l2loopback"
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get update -qq
+        sudo apt-get install -y v4l2loopback-dkms v4l2loopback-utils \
+            || die "Failed to install v4l2loopback. Try: sudo apt install v4l2loopback-dkms"
+    else
+        die "Unsupported package manager. Install v4l2loopback manually."
     fi
 fi
+modinfo v4l2loopback &>/dev/null 2>&1 || die "v4l2loopback module not available. Reboot may be needed."
+log "v4l2loopback module available"
 
-# Allow X11 connections from container
-xhost +local: 2>/dev/null || true
-
-# Build device arguments for cameras
-CAMERA_ARGS=""
-for cam in /dev/video*; do
-    if [ -e "$cam" ]; then
-        CAMERA_ARGS="$CAMERA_ARGS --device $cam:$cam"
+for tool_pkg in "lsof lsof" "fuser psmisc"; do
+    tool="${tool_pkg%% *}"
+    pkg="${tool_pkg##* }"
+    if ! command -v "$tool" &>/dev/null; then
+        if command -v dnf &>/dev/null; then
+            sudo dnf install -y "$pkg" 2>/dev/null || true
+        elif command -v apt-get &>/dev/null; then
+            sudo apt-get install -y "$pkg" 2>/dev/null || true
+        fi
     fi
 done
 
-echo "Starting BluCast..."
+echo "v4l2loopback" | sudo tee /etc/modules-load.d/v4l2loopback.conf >/dev/null
+echo "options v4l2loopback devices=1 video_nr=${VCAM_NR} card_label=\"${VCAM_LABEL}\" exclusive_caps=1 max_buffers=2 max_openers=10" \
+    | sudo tee /etc/modprobe.d/v4l2loopback.conf >/dev/null
+log "Module auto-load configured for boot"
 
-# Shared IPC directory
+cat << EOF | sudo tee /etc/udev/rules.d/83-blucast-vcam.rules >/dev/null
+SUBSYSTEM=="video4linux", ATTR{name}=="$VCAM_LABEL", MODE="0666", TAG+="uaccess"
+EOF
+sudo udevadm control --reload-rules 2>/dev/null || true
+log "Udev rule installed"
+
+if lsmod | grep -q v4l2loopback; then
+    if [ ! -e "$VCAM_DEVICE" ]; then
+        sudo modprobe -r v4l2loopback 2>/dev/null || true
+        sleep 1
+    fi
+fi
+if [ ! -e "$VCAM_DEVICE" ]; then
+    sudo modprobe v4l2loopback \
+        devices=1 video_nr=${VCAM_NR} card_label="${VCAM_LABEL}" \
+        exclusive_caps=1 max_buffers=2 max_openers=10
+    sleep 1
+fi
+[ -e "$VCAM_DEVICE" ] || die "Failed to create virtual camera at $VCAM_DEVICE"
+sudo chmod 666 "$VCAM_DEVICE" 2>/dev/null || true
+sudo udevadm trigger --action=change "$VCAM_DEVICE" 2>/dev/null || true
+log "Virtual camera active at $VCAM_DEVICE"
+
+SUDOERS_FILE="/etc/sudoers.d/blucast-v4l2loopback"
+if [ ! -f "$SUDOERS_FILE" ]; then
+    echo "$(whoami) ALL=(ALL) NOPASSWD: /sbin/modprobe v4l2loopback *" \
+        | sudo tee "$SUDOERS_FILE" >/dev/null
+    sudo chmod 440 "$SUDOERS_FILE"
+    log "Passwordless modprobe configured"
+fi
+
+for svc in wireplumber.service xdg-desktop-portal.service \
+           xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service; do
+    systemctl --user restart "$svc" 2>/dev/null || true
+done
+sleep 2
+log "PipeWire/portals refreshed"
+
+echo -e "${BLUE}[3/5]${NC} Pulling BluCast container..."
+echo "  This may take a few minutes on first install..."
+
+$CONTAINER_CMD pull "$GHCR_IMAGE" || die "Failed to pull container image"
+log "Container image pulled"
+
+echo -e "${BLUE}[4/5]${NC} Creating launcher..."
+
+mkdir -p "$INSTALL_DIR" "$BIN_DIR"
+
+cat > "$INSTALL_DIR/vcam_watcher.sh" << 'WATCHER_EOF'
+#!/bin/bash
+# BluCast Virtual Camera Consumer Watcher
+# Counts processes READING from /dev/video10.
+# Server opens O_WRONLY (lsof: 'w'), browsers open O_RDWR (lsof: 'u').
+
+VCAM_DEVICE="${1:-/dev/video10}"
+CONSUMERS_FILE="/tmp/blucast/consumers"
+
 mkdir -p /tmp/blucast
+echo "0" > "$CONSUMERS_FILE"
 
-# Create config directory for persistent settings
-CONFIG_DIR="$HOME/.config/blucast"
-mkdir -p "$CONFIG_DIR"
+count_with_lsof() {
+    lsof "$VCAM_DEVICE" 2>/dev/null | awk '
+        NR > 1 && $4 ~ /[0-9]+[ru]$/ { pids[$2] = 1 }
+        END { print length(pids) }
+    '
+}
 
-# Configure GPU arguments based on container runtime
+count_with_fuser() {
+    local pids total n
+    pids=$(fuser "$VCAM_DEVICE" 2>/dev/null) || true
+    total=$(echo "$pids" | wc -w)
+    n=$((total - 1))
+    [ $n -lt 0 ] && n=0
+    echo "$n"
+}
+
+if command -v lsof &>/dev/null; then
+    COUNT_FN="count_with_lsof"
+elif command -v fuser &>/dev/null; then
+    COUNT_FN="count_with_fuser"
+else
+    while true; do echo "0" > "$CONSUMERS_FILE"; sleep 5; done
+    exit 0
+fi
+
+while true; do
+    if [ ! -e "$VCAM_DEVICE" ]; then
+        echo "0" > "$CONSUMERS_FILE"
+        sleep 2
+        continue
+    fi
+    n=$($COUNT_FN)
+    [[ "$n" =~ ^[0-9]+$ ]] || n=0
+    echo "$n" > "$CONSUMERS_FILE"
+    sleep 1
+done
+WATCHER_EOF
+chmod +x "$INSTALL_DIR/vcam_watcher.sh"
+
+cat > "$INSTALL_DIR/run.sh" << 'RUNSCRIPT_EOF'
+#!/bin/bash
+set -euo pipefail
+
+GHCR_IMAGE="ghcr.io/andrei9383/blucast:latest"
+VCAM_DEVICE="/dev/video10"
+SHARED_DIR="/tmp/blucast"
+INSTALL_DIR="$HOME/.local/share/blucast"
+
+if command -v podman &>/dev/null; then
+    CONTAINER_CMD="podman"
+elif command -v docker &>/dev/null; then
+    CONTAINER_CMD="docker"
+else
+    echo "Error: podman or docker required"; exit 1
+fi
+
+if [ ! -e "$VCAM_DEVICE" ]; then
+    echo "Loading virtual camera module..."
+    if sudo -n modprobe v4l2loopback devices=1 video_nr=10 \
+        card_label="BluCast Virtual Camera" exclusive_caps=1 \
+        max_buffers=2 max_openers=10 2>/dev/null; then
+        sleep 1
+    elif command -v pkexec &>/dev/null; then
+        pkexec modprobe v4l2loopback devices=1 video_nr=10 \
+            card_label="BluCast Virtual Camera" exclusive_caps=1 \
+            max_buffers=2 max_openers=10
+        sleep 1
+    else
+        echo "Error: Cannot load v4l2loopback module."
+        exit 1
+    fi
+fi
+
+[ -e "$VCAM_DEVICE" ] || { echo "Error: $VCAM_DEVICE not found"; exit 1; }
+
+sudo -n chmod 666 "$VCAM_DEVICE" 2>/dev/null || chmod 666 "$VCAM_DEVICE" 2>/dev/null || true
+sudo -n udevadm trigger --action=change "$VCAM_DEVICE" 2>/dev/null || true
+sleep 1
+
+for svc in wireplumber.service xdg-desktop-portal.service \
+           xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service; do
+    systemctl --user restart "$svc" 2>/dev/null || true
+done
+sleep 2
+
+mkdir -p "$SHARED_DIR"
+echo "0" > "$SHARED_DIR/consumers"
+rm -f "$SHARED_DIR/preview.jpg" "$SHARED_DIR/cmd.pipe"
+
+xhost +local: 2>/dev/null || true
+
+WATCHER_PID=""
+if [ -x "$INSTALL_DIR/vcam_watcher.sh" ]; then
+    "$INSTALL_DIR/vcam_watcher.sh" "$VCAM_DEVICE" &
+    WATCHER_PID=$!
+fi
+
+cleanup() {
+    [ -n "$WATCHER_PID" ] && kill "$WATCHER_PID" 2>/dev/null || true
+    rm -f "$SHARED_DIR/consumers" "$SHARED_DIR/preview.jpg" "$SHARED_DIR/cmd.pipe" \
+          "$SHARED_DIR/server.pid" "$SHARED_DIR/.xauth"
+}
+trap cleanup EXIT
+
 if [ "$CONTAINER_CMD" = "podman" ]; then
     GPU_ARGS="--device nvidia.com/gpu=all"
 else
     GPU_ARGS="--gpus all"
 fi
 
-# Handle Xauthority
+CAMERA_ARGS=""
+for cam in /dev/video*; do
+    [ -e "$cam" ] && CAMERA_ARGS="$CAMERA_ARGS --device $cam:$cam"
+done
+
 XAUTH_ARGS=""
-CONTAINER_XAUTH="/tmp/blucast/.docker.xauth"
-if command -v xauth &> /dev/null && [ -n "$DISPLAY" ]; then
-    # Generate a fresh Xauthority file with the current display's cookie
-    touch "$CONTAINER_XAUTH"
-    xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' | xauth -f "$CONTAINER_XAUTH" nmerge - 2>/dev/null
-    if [ -s "$CONTAINER_XAUTH" ]; then
-        XAUTH_ARGS="-v $CONTAINER_XAUTH:/root/.Xauthority:ro -e XAUTHORITY=/root/.Xauthority"
+XAUTH_FILE="$SHARED_DIR/.xauth"
+if command -v xauth &>/dev/null && [ -n "${DISPLAY:-}" ]; then
+    touch "$XAUTH_FILE"
+    xauth nlist "$DISPLAY" 2>/dev/null | sed -e 's/^..../ffff/' \
+        | xauth -f "$XAUTH_FILE" nmerge - 2>/dev/null || true
+    if [ -s "$XAUTH_FILE" ]; then
+        XAUTH_ARGS="-v $XAUTH_FILE:/root/.Xauthority:ro -e XAUTHORITY=/root/.Xauthority"
     fi
 fi
-# Or mount existing Xauthority file directly
 if [ -z "$XAUTH_ARGS" ]; then
-    if [ -n "$XAUTHORITY" ] && [ -f "$XAUTHORITY" ]; then
-        XAUTH_ARGS="-v $XAUTHORITY:/root/.Xauthority:ro"
-    elif [ -f "$HOME/.Xauthority" ]; then
-        XAUTH_ARGS="-v $HOME/.Xauthority:/root/.Xauthority:ro"
-    fi
+    for f in "${XAUTHORITY:-}" "$HOME/.Xauthority"; do
+        if [ -n "$f" ] && [ -f "$f" ]; then
+            XAUTH_ARGS="-v $f:/root/.Xauthority:ro"
+            break
+        fi
+    done
 fi
 
-# D-Bus socket for system tray support
 DBUS_ARGS=""
-if [ -n "$DBUS_SESSION_BUS_ADDRESS" ]; then
+if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
     DBUS_SOCKET="${DBUS_SESSION_BUS_ADDRESS#unix:path=}"
     DBUS_SOCKET="${DBUS_SOCKET%%,*}"
     if [ -S "$DBUS_SOCKET" ]; then
@@ -251,14 +287,18 @@ if [ -n "$DBUS_SESSION_BUS_ADDRESS" ]; then
     fi
 fi
 
+CONFIG_DIR="$HOME/.config/blucast"
+mkdir -p "$CONFIG_DIR"
+
+echo "Starting BluCast..."
+
 $CONTAINER_CMD run --rm \
     --security-opt label=disable \
     $GPU_ARGS \
     $CAMERA_ARGS \
-    -e DISPLAY=$DISPLAY \
+    -e DISPLAY="${DISPLAY:-:0}" \
     -e NVIDIA_DRIVER_CAPABILITIES=all \
     -e NVIDIA_VISIBLE_DEVICES=all \
-    -e HOME=/host_home \
     -e QT_QPA_PLATFORM=xcb \
     -e QT_LOGGING_RULES="*.debug=false" \
     -e XDG_RUNTIME_DIR=/tmp/runtime-root \
@@ -267,92 +307,100 @@ $CONTAINER_CMD run --rm \
     $DBUS_ARGS \
     -v "$HOME:/host_home:ro" \
     -v "$CONFIG_DIR:/root/.config/blucast:rw" \
-    -v "/tmp/blucast:/tmp/blucast:rw" \
+    -v "$SHARED_DIR:$SHARED_DIR:rw" \
+    -v "/dev/dri:/dev/dri" \
     --ipc=host \
     --network host \
     "$GHCR_IMAGE" 2>&1
+RUNSCRIPT_EOF
+chmod +x "$INSTALL_DIR/run.sh"
 
-EXIT_CODE=$?
+cat > "$INSTALL_DIR/reset-environment.sh" << 'RESET_EOF'
+#!/bin/bash
+set -euo pipefail
 
-if [ $EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "BluCast exited with code $EXIT_CODE"
-    echo ""
-    echo "Common issues:"
-    echo "  - No camera: Plug in a webcam and try again"
-    echo "  - Display error: Run 'xhost +local:' first"
-    echo "  - GPU error: Check 'nvidia-smi' works"
+echo "Stopping containers..."
+for cmd in podman docker; do
+    command -v "$cmd" &>/dev/null || continue
+    for pat in blucast "ghcr.io/andrei9383/blucast"; do
+        ids=$($cmd ps -q --filter "ancestor=$pat" 2>/dev/null || true)
+        [ -n "$ids" ] && $cmd stop $ids 2>/dev/null || true
+    done
+done
+
+pkill -f "vcam_watcher" 2>/dev/null || true
+sudo modprobe -r v4l2loopback 2>/dev/null || true
+sudo rm -f /etc/modules-load.d/v4l2loopback.conf \
+           /etc/modprobe.d/v4l2loopback.conf \
+           /etc/udev/rules.d/83-blucast-vcam.rules \
+           /etc/sudoers.d/blucast-v4l2loopback
+sudo udevadm control --reload-rules 2>/dev/null || true
+rm -rf "$HOME/.config/blucast"
+rm -f "$HOME/.local/share/applications/blucast.desktop"
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+rm -rf /tmp/blucast
+rm -f "$HOME/.local/bin/blucast"
+
+for cmd in podman docker; do
+    command -v "$cmd" &>/dev/null || continue
+    for img in "ghcr.io/andrei9383/blucast:latest"; do
+        $cmd rmi "$img" 2>/dev/null || true
+    done
+done
+
+for svc in wireplumber.service xdg-desktop-portal.service \
+           xdg-desktop-portal-gtk.service xdg-desktop-portal-gnome.service; do
+    systemctl --user restart "$svc" 2>/dev/null || true
+done
+
+echo "Environment fully reset. You can re-run the installer."
+RESET_EOF
+chmod +x "$INSTALL_DIR/reset-environment.sh"
+
+ln -sf "$INSTALL_DIR/run.sh" "$BIN_DIR/blucast"
+log "Launcher: $BIN_DIR/blucast"
+
+echo -e "${BLUE}[5/5]${NC} Creating desktop entry..."
+
+LOGO_PATH="$INSTALL_DIR/logo.svg"
+if command -v curl &>/dev/null; then
+    curl -fsSL "https://raw.githubusercontent.com/Andrei9383/BluCast/main/assets/logo.svg" \
+        -o "$LOGO_PATH" 2>/dev/null || true
+elif command -v wget &>/dev/null; then
+    wget -q "https://raw.githubusercontent.com/Andrei9383/BluCast/main/assets/logo.svg" \
+        -O "$LOGO_PATH" 2>/dev/null || true
 fi
-RUNSCRIPT
+ICON_VALUE="camera-video"
+[ -f "$LOGO_PATH" ] && ICON_VALUE="$LOGO_PATH"
 
-    chmod +x "$INSTALL_DIR/run.sh"
-    
-    # Create symlink in bin directory
-    ln -sf "$INSTALL_DIR/run.sh" "$BIN_DIR/blucast"
-    
-    # Download logo for desktop entry
-    LOGO_URL="https://raw.githubusercontent.com/Andrei9383/BluCast/main/assets/logo.svg"
-    LOGO_PATH="$INSTALL_DIR/logo.svg"
-    if command -v curl &> /dev/null; then
-        curl -fsSL "$LOGO_URL" -o "$LOGO_PATH" 2>/dev/null || true
-    elif command -v wget &> /dev/null; then
-        wget -q "$LOGO_URL" -O "$LOGO_PATH" 2>/dev/null || true
-    fi
-
-    # Create desktop entry
-    DESKTOP_FILE="$HOME/.local/share/applications/blucast.desktop"
-    mkdir -p "$(dirname "$DESKTOP_FILE")"
-    
-    # Use downloaded logo if available, otherwise fall back to generic icon
-    if [ -f "$LOGO_PATH" ]; then
-        ICON_VALUE="$LOGO_PATH"
-    else
-        ICON_VALUE="camera-video"
-    fi
-
-    cat > "$DESKTOP_FILE" << DESKTOP
+DESKTOP_FILE="$HOME/.local/share/applications/blucast.desktop"
+mkdir -p "$(dirname "$DESKTOP_FILE")"
+cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
 Name=BluCast
-Comment=AI-Powered Video Effects
+Comment=AI-Powered Virtual Camera
 Exec=$INSTALL_DIR/run.sh
 Icon=$ICON_VALUE
 Terminal=false
 Type=Application
 Categories=Video;AudioVideo;
+StartupWMClass=blucast
 DESKTOP
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+log "Desktop entry installed"
 
-    echo -e "  Launcher created: ${GREEN}blucast${NC}"
-    echo -e "  Desktop entry created"
-}
+echo ""
+echo -e "${GREEN}══════════════════════════════════════${NC}"
+echo -e "${GREEN}     Installation Complete!${NC}"
+echo -e "${GREEN}══════════════════════════════════════${NC}"
+echo ""
+echo -e "  Launch: ${BLUE}blucast${NC}"
+echo -e "  Or find ${BLUE}BluCast${NC} in your application menu."
+echo -e "  Reset:  ${BLUE}$INSTALL_DIR/reset-environment.sh${NC}"
+echo ""
 
-# Main
-main() {
-    check_requirements
-    setup_vcam
-    pull_container
-    create_launcher
-    
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    warn "~/.local/bin is not in your PATH."
+    echo -e "    Add it:  ${BLUE}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc && source ~/.bashrc${NC}"
     echo ""
-    echo -e "${GREEN}======================================"
-    echo "       Installation Complete!"
-    echo "======================================${NC}"
-    echo ""
-    echo -e "To start BluCast, run:"
-    echo -e "  ${BLUE}blucast${NC}"
-    echo ""
-    echo -e "Or find it in your application menu."
-    echo ""
-    
-    # Check if ~/.local/bin is in PATH
-    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        echo -e "${YELLOW}Note:${NC} ~/.local/bin is not in your PATH."
-        echo -e "  Run the following, then ${GREEN}restart your terminal${NC} (or run ${BLUE}source ~/.bashrc${NC}):"
-        echo -e "  ${BLUE}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"
-        echo ""
-    else
-        echo -e "${YELLOW}Note:${NC} If 'blucast' is not found, restart your terminal or run: ${BLUE}source ~/.bashrc${NC}"
-        echo ""
-    fi
-}
-
-main "$@"
+fi
