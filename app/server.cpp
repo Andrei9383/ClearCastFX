@@ -239,10 +239,12 @@ public:
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
     if (ioctl(_vcamFd, VIDIOC_S_FMT, &fmt) < 0) {
-      std::cerr << "Warning: Could not set virtual camera format" << std::endl;
-      return true;
+      std::cerr << "Warning: Could not set virtual camera format. Device might be locked by a consumer." << std::endl;
     }
 
+    _vcamWidth = width;
+    _vcamHeight = height;
+    
     // Set frame rate on the virtual camera device
     int fps = g_outputFps.load();
     if (fps <= 0)
@@ -257,8 +259,6 @@ public:
                 << std::endl;
     }
 
-    _vcamWidth = width;
-    _vcamHeight = height;
     _vcamStreaming = true;
     std::cout << "Virtual camera: " << VCAM_DEVICE << " @ " << width << "x"
               << height << " " << fps << "fps (YUV420)" << std::endl;
@@ -304,7 +304,13 @@ public:
     }
 
     static cv::Mat yuv;
-    cv::cvtColor(bgr, yuv, cv::COLOR_BGR2YUV_I420);
+    if (bgr.cols != _vcamWidth || bgr.rows != _vcamHeight) {
+        cv::Mat resized;
+        cv::resize(bgr, resized, cv::Size(_vcamWidth, _vcamHeight));
+        cv::cvtColor(resized, yuv, cv::COLOR_BGR2YUV_I420);
+    } else {
+        cv::cvtColor(bgr, yuv, cv::COLOR_BGR2YUV_I420);
+    }
     write(_vcamFd, yuv.data, yuv.total() * yuv.elemSize());
   }
 
@@ -313,9 +319,11 @@ public:
       return;
 
     static cv::Mat idleFrameYuv;
-    if (idleFrameYuv.empty()) {
-      cv::Mat idleFrame = cv::Mat::zeros(720, 1280, CV_8UC3);
-      cv::putText(idleFrame, "Camera Off", cv::Point(520, 360),
+    if (idleFrameYuv.empty() || idleFrameYuv.cols != _vcamWidth || idleFrameYuv.rows * 3 / 2 != _vcamHeight * 3 / 2) {
+      int w = _vcamWidth > 0 ? _vcamWidth : 1280;
+      int h = _vcamHeight > 0 ? _vcamHeight : 720;
+      cv::Mat idleFrame = cv::Mat::zeros(h, w, CV_8UC3);
+      cv::putText(idleFrame, "Camera Off", cv::Point(w/2 - 100, h/2),
                   cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(100, 100, 100), 2);
       cv::cvtColor(idleFrame, idleFrameYuv, cv::COLOR_BGR2YUV_I420);
     }

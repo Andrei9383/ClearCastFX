@@ -41,23 +41,21 @@ refresh_camera_portal() {
     fi
 }
 
-# Ensure v4l2loopback is loaded with proper settings
-if [ ! -e /dev/video10 ]; then
-    if lsmod | grep -q v4l2loopback 2>/dev/null; then
-        echo "Reloading v4l2loopback with correct device number..."
-        sudo modprobe -r v4l2loopback 2>/dev/null || true
-        sleep 1
-    fi
-    sudo modprobe v4l2loopback \
-        devices=1 \
-        video_nr=10 \
-        card_label="BluCast Camera" \
-        exclusive_caps=1 \
-        max_buffers=2 \
-        max_openers=10 \
-        2>/dev/null || true
+# Ensure v4l2loopback is loaded with proper settings and clean state
+if lsmod | grep -q v4l2loopback 2>/dev/null; then
+    echo "Reloading v4l2loopback to clear format locks..."
+    sudo modprobe -r v4l2loopback 2>/dev/null || true
     sleep 1
 fi
+sudo modprobe v4l2loopback \
+    devices=1 \
+    video_nr=10 \
+    card_label="BluCast Camera" \
+    exclusive_caps=1 \
+    max_buffers=2 \
+    max_openers=10 \
+    2>/dev/null || true
+sleep 1
 
 # Ensure the virtual camera device is accessible
 if [ -e /dev/video10 ]; then
@@ -137,6 +135,7 @@ echo "Starting BluCast..."
 
 # Shared IPC directory
 mkdir -p /tmp/blucast
+rm -f /tmp/blucast/blucast_cmd
 
 # Start the vcam consumer watcher
 WATCHER_PID=""

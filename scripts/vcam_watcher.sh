@@ -8,19 +8,21 @@ CMD_PIPE="/tmp/blucast/blucast_cmd"
 send_consumers() {
     local count="$1"
     if [[ -p "$CMD_PIPE" ]]; then
-        echo "VCAM_CONSUMERS:$count" > "$CMD_PIPE" 2>/dev/null
+        echo "VCAM_CONSUMERS:$count" <> "$CMD_PIPE" 1>&0 2>/dev/null
+        return 0
     fi
+    return 1
 }
 
 last_consumers=-1
 
 while true; do
-    openers=$(lsof "$VCAM_DEVICE" 2>/dev/null | grep -v "^COMMAND" | wc -l)
-    consumers=$((openers > 1 ? openers - 1 : 0))
+    consumers=$(lsof "$VCAM_DEVICE" 2>/dev/null | awk 'NR>1 && $4 !~ /w$/ {print $2}' | sort -u | wc -l)
     
     if [[ "$consumers" != "$last_consumers" ]]; then
-        send_consumers "$consumers"
-        last_consumers="$consumers"
+        if send_consumers "$consumers"; then
+            last_consumers="$consumers"
+        fi
     fi
     
     sleep 1
